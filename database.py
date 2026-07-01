@@ -10,17 +10,32 @@ DB_NAME = os.environ.get("DB_NAME", "nigeria_infrastructure")
 DB_USER = os.environ.get("DB_USER")
 DB_PASS = os.environ.get("DB_PASS")
 DB_PORT = os.environ.get("DB_PORT")
+DB_URL = os.environ.get("DATABASE_URL")
 
 try:
-    print(f"Initializing pool with Host={DB_HOST}, Name={DB_NAME}, User={DB_USER}, Port={DB_PORT}, PassPresent={DB_PASS is not None}")
-    db_pool = pool.SimpleConnectionPool(
-        1, 20, # Min and max connections
-        host=DB_HOST,
-        database=DB_NAME,
-        user=DB_USER,
-        password=DB_PASS,
-        port=DB_PORT
-    )
+    if DB_URL:
+        # Hide password in logs if present in connection string
+        safe_url = DB_URL
+        if "@" in DB_URL:
+            parts = DB_URL.split("@")
+            prefix = parts[0]
+            suffix = parts[1]
+            if ":" in prefix:
+                subparts = prefix.split(":")
+                # Keep scheme, mask password
+                safe_url = f"{subparts[0]}:{subparts[1]}:****@{suffix}"
+        print(f"Initializing pool with DATABASE_URL={safe_url}")
+        db_pool = pool.SimpleConnectionPool(1, 20, DB_URL)
+    else:
+        print(f"Initializing pool with Host={DB_HOST}, Name={DB_NAME}, User={DB_USER}, Port={DB_PORT}, PassPresent={DB_PASS is not None}")
+        db_pool = pool.SimpleConnectionPool(
+            1, 20, # Min and max connections
+            host=DB_HOST,
+            database=DB_NAME,
+            user=DB_USER,
+            password=DB_PASS,
+            port=DB_PORT
+        )
     print("PostgreSQL connection pool established successfully.")
 except Exception as e:
     print(f"Error creating database connection pool: {e}")
