@@ -13,6 +13,7 @@ DB_NAME = os.environ.get("DB_NAME", "nigeria_infrastructure")
 DB_USER = os.environ.get("DB_USER")
 DB_PASS = os.environ.get("DB_PASS")
 DB_PORT = os.environ.get("DB_PORT", "5432")
+DB_URL = os.environ.get("DATABASE_URL")
 
 # Overpass API mirrors for OSM queries
 overpass_mirrors = [
@@ -106,13 +107,16 @@ def initialize_boundary_table(conn):
 def main():
     print("Connecting to PostgreSQL database...")
     try:
-        conn = psycopg2.connect(
-            host=DB_HOST,
-            database=DB_NAME,
-            user=DB_USER,
-            password=DB_PASS,
-            port=DB_PORT
-        )
+        if DB_URL:
+            conn = psycopg2.connect(DB_URL)
+        else:
+            conn = psycopg2.connect(
+                host=DB_HOST,
+                database=DB_NAME,
+                user=DB_USER,
+                password=DB_PASS,
+                port=DB_PORT
+            )
         initialize_boundary_table(conn)
         cur = conn.cursor()
     except Exception as e:
