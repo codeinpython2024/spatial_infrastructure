@@ -105,6 +105,32 @@ def index():
     """Renders the main dashboard mapping interface."""
     return render_template('index.html')
 
+@app.route('/api/v1/boundary', methods=['GET'])
+def get_boundary():
+    """Returns the country boundary of Nigeria as GeoJSON."""
+    try:
+        file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'nigeria_boundary.geojson')
+        if os.path.exists(file_path):
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return jsonify(data)
+        else:
+            conn = get_db_connection()
+            if conn:
+                try:
+                    with conn.cursor() as cursor:
+                        cursor.execute("SELECT ST_AsGeoJSON(geom) FROM nigeria_country_boundary LIMIT 1;")
+                        row = cursor.fetchone()
+                        if row and row[0]:
+                            return jsonify(json.loads(row[0]))
+                finally:
+                    release_db_connection(conn)
+            return jsonify({"error": "Boundary data not found"}), 404
+    except Exception as e:
+        logger.exception("Error serving country boundary:")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/api/v1/states', methods=['GET'])
 def get_states():
     """Returns a list of all unique states containing infrastructure assets."""

@@ -24,10 +24,30 @@
 <body>
 
     <div id="sidebar">
-        <div class="header-container">
-            <div class="subtitle">Geospatial Explorer</div>
-            <h1>Nigeria Infrastructure</h1>
+        <!-- Sidebar collapse toggle button -->
+        <button id="sidebarToggle" class="sidebar-toggle-btn" onclick="toggleSidebar()" aria-label="Toggle Sidebar">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="15 18 9 12 15 6"></polyline>
+            </svg>
+        </button>
+
+        <div class="header-container" style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <img src="{{ url_for('static', filename='image/logo.png') }}" alt="Logo" style="height: 40px; width: auto; filter: drop-shadow(0 2px 8px var(--accent-glow)); flex-shrink: 0;">
+                <div>
+                    <div class="subtitle" style="margin-bottom: 2px;">Geospatial Explorer</div>
+                    <h1 style="font-size: 18px; line-height: 1.1; margin: 0;">Nigeria Infrastructure</h1>
+                </div>
+            </div>
+            
+            <button id="themeToggle" class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Toggle Theme" style="flex-shrink: 0; margin-top: 2px;">
+                <!-- Moon icon (default for dark theme) -->
+                <svg id="themeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+            </button>
         </div>
+
 
         <!-- Filter Card -->
         <div class="card">

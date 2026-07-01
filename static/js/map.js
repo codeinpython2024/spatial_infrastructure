@@ -123,18 +123,13 @@ function getAssetIcon(type, subType) {
     });
 }
 
-// Initialize Leaflet map
-const map = L.map('map', {
-    zoomControl: false // Disable to relocate it to a better position
-}).setView([9.0820, 8.6753], 6);
-
-// Add Zoom Control to the top-right
-L.control.zoom({ position: 'topright' }).addTo(map);
+// Theme Toggle & Syncing
+let currentTheme = localStorage.getItem('theme') || 'dark';
 
 // Define Base Maps
-const lightMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 20,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+const osmMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
 });
 
 const satelliteMap = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
@@ -142,16 +137,105 @@ const satelliteMap = L.tileLayer('https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z
     attribution: '&copy; Google Maps'
 });
 
-// Set default basemap
-lightMap.addTo(map);
+// Initialize map with OSM tiles
+const map = L.map('map', {
+    zoomControl: false,
+    layers: [osmMap]
+}).setView([9.0820, 8.6753], 6);
+
+// Add Zoom Control to the top-right
+L.control.zoom({ position: 'topright' }).addTo(map);
 
 // Base maps controller
 const baseMaps = {
-    "Light Map": lightMap,
+    "Street Map (OSM)": osmMap,
     "Satellite View": satelliteMap
 };
 
 L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
+
+function applyTheme(theme) {
+    const body = document.body;
+    const themeIcon = document.getElementById('themeIcon');
+    
+    if (theme === 'light') {
+        body.classList.add('light-theme');
+        if (themeIcon) {
+            themeIcon.innerHTML = `
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            `;
+        }
+    } else {
+        body.classList.remove('light-theme');
+        if (themeIcon) {
+            themeIcon.innerHTML = `
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            `;
+        }
+    }
+    // OSM tile is used for both themes — UI chrome switches, map basemap stays consistent
+    localStorage.setItem('theme', theme);
+    currentTheme = theme;
+}
+
+function toggleTheme() {
+    applyTheme(currentTheme === 'light' ? 'dark' : 'light');
+}
+
+// Sidebar collapse toggle
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.getElementById('sidebarToggle');
+    
+    if (sidebar && toggleBtn) {
+        sidebar.classList.toggle('collapsed');
+        toggleBtn.classList.toggle('collapsed');
+        
+        setTimeout(() => {
+            map.invalidateSize();
+        }, 305);
+    }
+}
+
+// Nigeria boundary layer
+let boundaryLayer;
+
+async function loadCountryBoundary() {
+    try {
+        const response = await fetch('/api/v1/boundary');
+        if (!response.ok) return;
+        const boundaryData = await response.json();
+        
+        if (boundaryLayer) {
+            map.removeLayer(boundaryLayer);
+        }
+        
+        boundaryLayer = L.geoJSON(boundaryData, {
+            style: function (feature) {
+                return {
+                    color: '#10b981',        // Emerald border
+                    weight: 2,               // Clean stroke
+                    opacity: 0.8,
+                    fillColor: '#10b981',    // Faint fill
+                    fillOpacity: 0.01,
+                    dashArray: '4, 4',       // Dashed border
+                    interactive: false       // Do not block clicks
+                };
+            }
+        }).addTo(map);
+    } catch (e) {
+        console.error("Failed to load country boundary:", e);
+    }
+}
+
 
 
 // Cluster layer setup
@@ -358,6 +442,8 @@ async function queryWorldPop(lat, lon, containerId) {
 
 // Initialize dynamic parameters and retrieve default dataset
 window.onload = async () => {
+    applyTheme(currentTheme);
     await initializeFilters();
+    await loadCountryBoundary();
     await loadInfrastructureData();
 };

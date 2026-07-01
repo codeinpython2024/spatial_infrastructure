@@ -334,11 +334,20 @@
 
     <!-- Top Navigation Bar -->
     <nav class="admin-nav">
-        <div class="nav-logo">
-            <h2>Nigeria Infrastructure <span>— Admin Portal</span></h2>
+        <div class="nav-logo" style="display: flex; align-items: center; gap: 12px;">
+            <img src="{{ url_for('static', filename='image/logo.png') }}" alt="Logo" style="height: 32px; width: auto; filter: drop-shadow(0 2px 6px var(--accent-glow));">
+            <h2>Nigeria Infrastructure <span style="font-weight: 500; font-size: 13px; opacity: 0.8; margin-left: 4px;">— Admin Portal</span></h2>
         </div>
         <div class="nav-actions">
             <span style="font-size: 13px; font-weight: 500; color: var(--text-secondary);">Logged in as: <strong>admin</strong></span>
+            
+            <button id="themeToggle" class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Toggle Theme" style="margin-right: 4px; padding: 6px;">
+                <!-- Moon icon (default for dark theme) -->
+                <svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                </svg>
+            </button>
+
             <a href="{{ url_for('index') }}" class="btn-nav btn-view-map" target="_blank">
                 View Public Map
             </a>
@@ -347,6 +356,7 @@
             </a>
         </div>
     </nav>
+
 
     <!-- Main Workspace Container -->
     <div class="admin-main">
@@ -541,16 +551,65 @@
             window.confirm = () => true;
         }
 
+        // Theme Toggle & Syncing
+        let currentTheme = localStorage.getItem('theme') || 'dark';
+        let miniMapTileLayer = null;
+
         // Initialize Mini Leaflet Map Picker
         const map = L.map('miniMap', {
             zoomControl: true
         }).setView([9.0820, 8.6753], 5);
 
-        // Add plain basemap
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 18,
-            attribution: '&copy; OpenStreetMap'
-        }).addTo(map);
+        function applyTheme(theme) {
+            const body = document.body;
+            const themeIcon = document.getElementById('themeIcon');
+            
+            if (theme === 'light') {
+                body.classList.add('light-theme');
+                if (themeIcon) {
+                    themeIcon.innerHTML = `
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    `;
+                }
+                if (miniMapTileLayer) {
+                    map.removeLayer(miniMapTileLayer);
+                }
+                miniMapTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(map);
+            } else {
+                body.classList.remove('light-theme');
+                if (themeIcon) {
+                    themeIcon.innerHTML = `
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    `;
+                }
+                if (miniMapTileLayer) {
+                    map.removeLayer(miniMapTileLayer);
+                }
+                miniMapTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                }).addTo(map);
+            }
+            
+            localStorage.setItem('theme', theme);
+            currentTheme = theme;
+        }
+
+        function toggleTheme() {
+            applyTheme(currentTheme === 'light' ? 'dark' : 'light');
+        }
+
 
         let activeMarker = null;
         let currentEditId = null;
@@ -1072,6 +1131,7 @@
 
         // On Load initialization
         window.onload = async () => {
+            applyTheme(currentTheme);
             await fetchStatesAndPopulate();
             await fetchAssets(1);
         };
