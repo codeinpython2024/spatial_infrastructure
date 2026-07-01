@@ -646,3 +646,26 @@ body.light-theme .spinner-overlay {
 .search-input-container input:focus + svg {
     color: var(--accent-color);
 }
+
+/* Mobile Responsive Styling */
+@media (max-width: 768px) {
+    #sidebar {
+        position: absolute;
+        top: 0;
+        left: 0;
+        height: 100%;
+        width: 290px;
+        min-width: unset;
+        z-index: 2000;
+        box-shadow: var(--card-shadow);
+    }
+    
+    #sidebar.collapsed {
+        margin-left: -290px;
+    }
+    
+    #map {
+        width: 100%;
+        height: 100%;
+    }
+}

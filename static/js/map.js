@@ -500,6 +500,16 @@ window.onload = async () => {
     await initializeFilters();
     await loadCountryBoundary();
     
+    // Collapse sidebar by default on mobile screens (width <= 768px)
+    if (window.innerWidth <= 768) {
+        const sidebar = document.getElementById('sidebar');
+        const toggleBtn = document.getElementById('sidebarToggle');
+        if (sidebar && toggleBtn) {
+            sidebar.classList.add('collapsed');
+            toggleBtn.classList.add('collapsed');
+        }
+    }
+    
     // Set initial counter label indicating selection is required
     const counter = document.getElementById('assetCounter');
     if (counter) counter.innerText = '—';
