@@ -65,13 +65,11 @@ def query_overpass_with_fallback(name, q_body, timeout=60):
 def initialize_boundary_table(conn):
     """Creates the country boundary table and loads the GeoJSON polygon if not present."""
     cur = conn.cursor()
-    cur.execute("""
-        SELECT EXISTS (
-            SELECT FROM information_schema.tables 
-            WHERE table_schema = 'public' 
-              AND table_name = 'nigeria_country_boundary'
-        );
-    """)
+    print("Enabling PostGIS extension if not exists...")
+    cur.execute("CREATE EXTENSION IF NOT EXISTS postgis;")
+    conn.commit()
+
+    cur.execute("SELECT EXISTS (SELECT 1 FROM pg_tables WHERE tablename = 'nigeria_country_boundary');")
     table_exists = cur.fetchone()[0]
     
     if not table_exists:
