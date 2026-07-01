@@ -104,6 +104,28 @@ def initialize_boundary_table(conn):
             print(f"Warning: Boundary GeoJSON file not found at {geojson_path}. Boundary checks might fail if table is empty.")
     cur.close()
 
+def initialize_assets_table(conn):
+    """Creates the infrastructure_assets table and its spatial indexes if not present."""
+    cur = conn.cursor()
+    print("Creating infrastructure_assets table if not exists...")
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS infrastructure_assets (
+            id SERIAL PRIMARY KEY,
+            osm_id BIGINT,
+            source VARCHAR(255),
+            asset_name VARCHAR(255),
+            asset_type VARCHAR(255),
+            sub_type VARCHAR(255),
+            state VARCHAR(255),
+            lga VARCHAR(255),
+            geom GEOMETRY(Point, 4326)
+        );
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_geom ON infrastructure_assets USING gist (geom);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_assets_state_type ON infrastructure_assets USING btree (state, asset_type);")
+    conn.commit()
+    cur.close()
+
 def main():
     print("Connecting to PostgreSQL database...")
     try:
@@ -118,6 +140,7 @@ def main():
                 port=DB_PORT
             )
         initialize_boundary_table(conn)
+        initialize_assets_table(conn)
         cur = conn.cursor()
     except Exception as e:
         print(f"Failed to connect to PostgreSQL: {e}")
