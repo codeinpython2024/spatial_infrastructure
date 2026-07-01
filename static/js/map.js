@@ -222,11 +222,10 @@ async function loadCountryBoundary() {
             style: function (feature) {
                 return {
                     color: '#10b981',        // Emerald border
-                    weight: 2,               // Clean stroke
-                    opacity: 0.8,
+                    weight: 3,               // Optimal solid stroke
+                    opacity: 0.85,
                     fillColor: '#10b981',    // Faint fill
-                    fillOpacity: 0.01,
-                    dashArray: '4, 4',       // Dashed border
+                    fillOpacity: 0.02,
                     interactive: false       // Do not block clicks
                 };
             }
