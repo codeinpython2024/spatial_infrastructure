@@ -142,13 +142,13 @@ body {
 
 #map {
     flex-grow: 1;
-    height: calc(100% - 32px);
-    margin: 16px;
+    height: calc(100% - 16px);
+    margin: 8px;
     align-self: center;
     background-color: #e5e9f0;
     /* Fallback light bg while map tiles load */
     border: 1px solid var(--border-color);
-    border-radius: 16px;
+    border-radius: 12px;
     box-shadow: var(--card-shadow);
     overflow: hidden;
     z-index: 1;
@@ -686,11 +686,11 @@ body.light-theme .spinner-overlay {
         position: absolute;
         top: 0;
         left: 0;
-        width: calc(100% - 24px);
-        height: calc(100% - 24px);
-        margin: 12px;
+        width: calc(100% - 16px);
+        height: calc(100% - 16px);
+        margin: 8px;
         border: 1px solid var(--border-color);
-        border-radius: 12px;
+        border-radius: 8px;
         overflow: hidden;
         z-index: 1;
     }
