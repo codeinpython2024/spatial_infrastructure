@@ -177,6 +177,13 @@ def get_infrastructure():
     """
     state_filter = request.args.get('state', None)
     type_filter = request.args.get('type', None)
+    q_filter = request.args.get('q', None)
+
+    # Enforce that both state and type filters are provided and not empty
+    if not state_filter:
+        return jsonify({"error": "State filter is required. Nationwide search is disabled."}), 400
+    if not type_filter:
+        return jsonify({"error": "Asset type filter is required to optimize query performance."}), 400
 
     conn = get_db_connection()
     if not conn:
@@ -209,25 +216,22 @@ def get_infrastructure():
     """
     
     params = []
-    has_filters = False
     if state_filter:
         query += " AND state = %s"
         params.append(state_filter)
-        has_filters = True
     if type_filter:
         query += " AND asset_type = %s"
         params.append(type_filter)
-        has_filters = True
+    if q_filter:
+        query += " AND asset_name ILIKE %s"
+        params.append(f"%{q_filter}%")
 
     query += " ORDER BY id"
-    if not has_filters:
-        query += " LIMIT 5000"
-
     query += ") features;"
 
     try:
         with conn.cursor() as cursor:
-            logger.info(f"Executing query with filters state={state_filter}, type={type_filter}")
+            logger.info(f"Executing query with filters state={state_filter}, type={type_filter}, q={q_filter}")
             cursor.execute(query, tuple(params))
             result = cursor.fetchone()
             geojson_data = result[0] if result and result[0] else {"type": "FeatureCollection", "features": []}
@@ -360,9 +364,11 @@ def get_lgas():
 
 @app.route('/api/v1/admin/assets', methods=['GET'])
 def get_admin_assets():
-    """Returns a paginated list of manual assets created by admins."""
+    """Returns a paginated list of manual assets created by admins, optionally filtered by search query."""
     if not session.get('logged_in'):
         return jsonify({"error": "Unauthorized"}), 401
+
+    q_filter = request.args.get('q', None)
 
     try:
         page = int(request.args.get('page', 1))
@@ -383,21 +389,24 @@ def get_admin_assets():
 
     try:
         with conn.cursor() as cursor:
-            # Get total count of manual assets
-            cursor.execute("""
-                SELECT COUNT(*) FROM infrastructure_assets
-                WHERE source = 'Admin Portal';
-            """)
-            total_count = cursor.fetchone()[0]
-
-            # Fetch current page of manual assets
-            cursor.execute("""
+            # Query count and select with optional search query
+            count_query = "SELECT COUNT(*) FROM infrastructure_assets WHERE source = 'Admin Portal'"
+            select_query = """
                 SELECT id, asset_name, asset_type, sub_type, state, lga, ST_Y(geom) as lat, ST_X(geom) as lon
                 FROM infrastructure_assets
                 WHERE source = 'Admin Portal'
-                ORDER BY id DESC
-                LIMIT %s OFFSET %s;
-            """, (limit, offset))
+            """
+            params = []
+            if q_filter:
+                count_query += " AND (asset_name ILIKE %s OR state ILIKE %s OR lga ILIKE %s OR asset_type ILIKE %s OR sub_type ILIKE %s)"
+                select_query += " AND (asset_name ILIKE %s OR state ILIKE %s OR lga ILIKE %s OR asset_type ILIKE %s OR sub_type ILIKE %s)"
+                params.extend([f"%{q_filter}%"] * 5)
+
+            cursor.execute(count_query + ";", tuple(params))
+            total_count = cursor.fetchone()[0]
+
+            select_query += " ORDER BY id DESC LIMIT %s OFFSET %s;"
+            cursor.execute(select_query, tuple(params + [limit, offset]))
             
             assets = []
             for row in cursor.fetchall():
@@ -552,7 +561,7 @@ def upload_csv():
 
 @app.route('/api/v1/admin/add-asset', methods=['POST'])
 def add_asset():
-    """Validates boundary rules, proximity rules, and inserts a manual infrastructure asset."""
+    """Validates boundary rules, proximity rules, duplicate rules, and inserts a manual infrastructure asset."""
     if not session.get('logged_in'):
         return jsonify({"error": "Unauthorized"}), 401
     
@@ -565,6 +574,7 @@ def add_asset():
     lat_str = data.get('lat')
     lon_str = data.get('lon')
     override_lga_check = data.get('override_lga_check', False)
+    override_duplicate_check = data.get('override_duplicate_check', False)
 
     if not all([asset_name, asset_type, state, lat_str, lon_str]):
         return jsonify({"error": "Missing required fields"}), 400
@@ -593,7 +603,26 @@ def add_asset():
             if not inside_nigeria:
                 return jsonify({"error": "Coordinates are outside of Nigeria's boundaries."}), 400
 
-            # 2. LGA Proximity check (warn if point is > 25km away from existing assets in this LGA)
+            # 2. Duplicate proximity check (warn if point is <= 50m of same type)
+            if not override_duplicate_check:
+                cursor.execute("""
+                    SELECT asset_name, state, lga, ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography) as dist
+                    FROM infrastructure_assets
+                    WHERE asset_type = %s AND geom IS NOT NULL
+                      AND ST_DWithin(geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography, 50)
+                    ORDER BY dist
+                    LIMIT 1;
+                """, (lon, lat, asset_type, lon, lat))
+                dup_row = cursor.fetchone()
+                if dup_row:
+                    dup_name, dup_state, dup_lga, dist = dup_row
+                    return jsonify({
+                        "duplicate_warning": True,
+                        "distance_m": round(dist, 1),
+                        "message": f"An existing '{asset_type}' asset named '{dup_name}' is located {round(dist, 1)} meters away in {dup_lga}, {dup_state}. Do you want to save this as a separate asset anyway?"
+                    }), 200
+
+            # 3. LGA Proximity check (warn if point is > 25km away from existing assets in this LGA)
             if not override_lga_check:
                 cursor.execute("""
                     SELECT MIN(ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography))
@@ -611,7 +640,7 @@ def add_asset():
                         "message": f"Coordinates are {distance_km} km away from other assets in {lga}. It may fall outside the selected LGA's boundary. Do you want to save anyway?"
                     }), 200
 
-            # 3. Perform insertion
+            # 4. Perform insertion
             cursor.execute("""
                 INSERT INTO infrastructure_assets (source, asset_name, asset_type, sub_type, state, lga, geom)
                 VALUES ('Admin Portal', %s, %s, %s, %s, %s, ST_SetSRID(ST_MakePoint(%s, %s), 4326))
@@ -644,7 +673,7 @@ def add_asset():
 
 @app.route('/api/v1/admin/edit-asset/<int:asset_id>', methods=['POST', 'PUT'])
 def edit_asset(asset_id):
-    """Validates boundary rules, proximity rules, and updates an existing manual infrastructure asset."""
+    """Validates boundary rules, proximity rules, duplicate rules, and updates an existing manual infrastructure asset."""
     if not session.get('logged_in'):
         return jsonify({"error": "Unauthorized"}), 401
     
@@ -657,6 +686,7 @@ def edit_asset(asset_id):
     lat_str = data.get('lat')
     lon_str = data.get('lon')
     override_lga_check = data.get('override_lga_check', False)
+    override_duplicate_check = data.get('override_duplicate_check', False)
 
     if not all([asset_name, asset_type, state, lat_str, lon_str]):
         return jsonify({"error": "Missing required fields"}), 400
@@ -690,7 +720,26 @@ def edit_asset(asset_id):
             if not inside_nigeria:
                 return jsonify({"error": "Coordinates are outside of Nigeria's boundaries."}), 400
 
-            # 2. LGA Proximity check
+            # 2. Duplicate proximity check (warn if point is <= 50m of same type, excluding current ID)
+            if not override_duplicate_check:
+                cursor.execute("""
+                    SELECT asset_name, state, lga, ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography) as dist
+                    FROM infrastructure_assets
+                    WHERE asset_type = %s AND id != %s AND geom IS NOT NULL
+                      AND ST_DWithin(geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography, 50)
+                    ORDER BY dist
+                    LIMIT 1;
+                """, (lon, lat, asset_type, asset_id, lon, lat))
+                dup_row = cursor.fetchone()
+                if dup_row:
+                    dup_name, dup_state, dup_lga, dist = dup_row
+                    return jsonify({
+                        "duplicate_warning": True,
+                        "distance_m": round(dist, 1),
+                        "message": f"An existing '{asset_type}' asset named '{dup_name}' is located {round(dist, 1)} meters away in {dup_lga}, {dup_state}. Do you want to save this as a separate asset anyway?"
+                    }), 200
+
+            # 3. LGA Proximity check
             if not override_lga_check:
                 cursor.execute("""
                     SELECT MIN(ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography))
@@ -708,7 +757,7 @@ def edit_asset(asset_id):
                         "message": f"Coordinates are {distance_km} km away from other assets in {lga}. It may fall outside the selected LGA's boundary. Do you want to update anyway?"
                     }), 200
 
-            # 3. Perform update
+            # 4. Perform update
             cursor.execute("""
                 UPDATE infrastructure_assets 
                 SET asset_name = %s, asset_type = %s, sub_type = %s, state = %s, lga = %s, 

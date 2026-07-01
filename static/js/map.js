@@ -286,7 +286,7 @@ async function initializeFilters() {
         const statesData = await statesRes.json();
         const stateSelect = document.getElementById('stateFilter');
 
-        stateSelect.innerHTML = '<option value="">All 36 States + FCT</option>';
+        stateSelect.innerHTML = '<option value="" disabled selected>Select State...</option>';
         if (statesData.states && statesData.states.length > 0) {
             statesData.states.forEach(state => {
                 const option = document.createElement('option');
@@ -295,7 +295,7 @@ async function initializeFilters() {
                 stateSelect.appendChild(option);
             });
         } else {
-            stateSelect.innerHTML = '<option value="">No States Found</option>';
+            stateSelect.innerHTML = '<option value="" disabled selected>No States Found</option>';
         }
 
         // Fetch Asset Types
@@ -303,7 +303,7 @@ async function initializeFilters() {
         const typesData = await typesRes.json();
         const typeSelect = document.getElementById('typeFilter');
 
-        typeSelect.innerHTML = '<option value="">All Asset Types</option>';
+        typeSelect.innerHTML = '<option value="" disabled selected>Select Asset Type...</option>';
         if (typesData.asset_types && typesData.asset_types.length > 0) {
             typesData.asset_types.forEach(type => {
                 const option = document.createElement('option');
@@ -312,7 +312,7 @@ async function initializeFilters() {
                 typeSelect.appendChild(option);
             });
         } else {
-            typeSelect.innerHTML = '<option value="">No Asset Types Found</option>';
+            typeSelect.innerHTML = '<option value="" disabled selected>No Asset Types Found</option>';
         }
 
     } catch (error) {
@@ -320,29 +320,81 @@ async function initializeFilters() {
     }
 }
 
+// Toast notification feedback system
+function showToast(message, type = "success") {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+    
+    const toast = document.createElement('div');
+    toast.className = `toast-notification toast-${type}`;
+    
+    const icon = type === "success" 
+        ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><polyline points="20 6 9 17 4 12"></polyline></svg>`
+        : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+
+    toast.innerHTML = `${icon}<span>${message}</span>`;
+    container.appendChild(toast);
+
+    // Animate In
+    setTimeout(() => {
+        toast.classList.add('active');
+    }, 10);
+
+    // Animate Out & Destroy
+    setTimeout(() => {
+        toast.classList.remove('active');
+        setTimeout(() => {
+            toast.remove();
+        }, 300);
+    }, 4000);
+}
+
 // Fetch infrastructure assets and render on map
 async function loadInfrastructureData() {
-    toggleLoading(true);
     const state = document.getElementById('stateFilter').value;
     const type = document.getElementById('typeFilter').value;
+    const searchVal = document.getElementById('searchQuery') ? document.getElementById('searchQuery').value.trim() : '';
+
+    if (!state || state === "") {
+        showToast("Administrative State is required.", "error");
+        return;
+    }
+    if (!type || type === "") {
+        showToast("Infrastructure Type is required.", "error");
+        return;
+    }
+
+    toggleLoading(true);
 
     // Clean previous layers
     markerClusterGroup.clearLayers();
 
     // Build dynamic query
-    let url = `/api/v1/infrastructure?`;
-    if (state) url += `state=${encodeURIComponent(state)}&`;
-    if (type) url += `type=${encodeURIComponent(type)}`;
+    let url = `/api/v1/infrastructure?state=${encodeURIComponent(state)}&type=${encodeURIComponent(type)}`;
+    if (searchVal) {
+        url += `&q=${encodeURIComponent(searchVal)}`;
+    }
 
     try {
         const response = await fetch(url);
-        const geojsonData = await response.json();
+        const data = await response.json();
+
+        if (!response.ok) {
+            showToast(data.error || "Failed to load infrastructure data.", "error");
+            return;
+        }
+
+        // Hide instructions prompt
+        const prompt = document.getElementById('filterPrompt');
+        if (prompt) {
+            prompt.style.display = 'none';
+        }
 
         // Update counter
-        const featureCount = (geojsonData.features) ? geojsonData.features.length : 0;
-        document.getElementById('assetCounter').innerText = featureCount === 5000 ? '5,000 (Capped)' : featureCount.toLocaleString();
+        const featureCount = (data.features) ? data.features.length : 0;
+        document.getElementById('assetCounter').innerText = featureCount.toLocaleString();
 
-        geojsonLayer = L.geoJSON(geojsonData, {
+        geojsonLayer = L.geoJSON(data, {
             pointToLayer: function (feature, latlng) {
                 return L.marker(latlng, {
                     icon: getAssetIcon(feature.properties.type, feature.properties.sub_type)
@@ -385,13 +437,15 @@ async function loadInfrastructureData() {
         markerClusterGroup.addLayer(geojsonLayer);
 
         // Dynamically fit map limits to matched items
-        if (geojsonData.features && geojsonData.features.length > 0) {
+        if (data.features && data.features.length > 0) {
             map.fitBounds(markerClusterGroup.getBounds(), { padding: [40, 40] });
         } else {
+            showToast("No assets match your search query.", "success");
             map.setView([9.0820, 8.6753], 6);
         }
     } catch (error) {
         console.error("Failed to fetch geospatial data points:", error);
+        showToast("Error loading geospatial data.", "error");
     } finally {
         toggleLoading(false);
     }
@@ -445,5 +499,18 @@ window.onload = async () => {
     applyTheme(currentTheme);
     await initializeFilters();
     await loadCountryBoundary();
-    await loadInfrastructureData();
+    
+    // Set initial counter label indicating selection is required
+    const counter = document.getElementById('assetCounter');
+    if (counter) counter.innerText = '—';
+
+    // Set Enter key trigger on search input
+    const searchInput = document.getElementById('searchQuery');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                loadInfrastructureData();
+            }
+        });
+    }
 };

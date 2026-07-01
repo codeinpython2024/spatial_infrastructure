@@ -4,7 +4,9 @@ An interactive spatial database, ingestion pipeline, and web application designe
 
 ## 🚀 Key Features
 
-* **Interactive Map Interface:** Dynamic geospatial mapping of assets with state-level and asset-type filtering, returning RFC 7946 compliant GeoJSON features.
+* **Interactive Map Interface:** Dynamic geospatial mapping of assets with search capabilities:
+  * **Search & Filters:** Real-time name-based search with strict State and Asset Type scoping to prevent nationwide performance overheads.
+  * **Themed UI Chrome:** Modern theme toggle switcher that seamlessly assimilates its borders and icons to active themes.
 * **Geospatial Ingestion Pipeline:** Automatic extraction and parsing of spatial datasets:
   * **Healthcare Facilities:** Local SQLite-backed GeoPackage (`nga_health_facilities_v2_0.gpkg`).
   * **Educational Facilities:** Shapefile parsing using `pyshp` (`Nigeria_-_Schools/` directory).
@@ -14,9 +16,9 @@ An interactive spatial database, ingestion pipeline, and web application designe
   * Auto-assigns State and LGA administrative attributes to assets using a spatial nearest-neighbor join.
   * Cleans up out-of-boundary assets using country boundaries defined in `nigeria_boundary.geojson`.
 * **Administrative Controls:** Fully featured admin portal to manually add, edit, or bulk import assets via CSV with:
-  * Spatial proximity validation (warns admin if an asset's location is far from its declared LGA).
-  * Duplicate point detection within 50m.
-  * Interactive paginated table view.
+  * **Spatial Duplicate Check:** Warns administrators on manual creation or edits if an asset of the same type exists within a 50-meter radius, presenting the conflicting asset name, distance, and option to bypass/override.
+  * **Spatial LGA Proximity Check:** Warns administrators if a selected location falls far from its declared LGA boundaries (with override).
+  * **Feed Search:** Debounced search bar over the paginated manual assets table feed.
 * **Robust Verification & Testing:** Built-in integration tests for administrative REST APIs and End-to-End Playwright test suite for browser UI automation.
 
 ---

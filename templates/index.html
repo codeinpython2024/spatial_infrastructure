@@ -59,23 +59,45 @@
                 Filter Assets
             </div>
 
+            <!-- Search input bar -->
+            <div class="filter-group">
+                <label for="searchQuery">Search Asset Name</label>
+                <div class="search-input-container">
+                    <input type="text" id="searchQuery" placeholder="e.g. General Hospital...">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                </div>
+            </div>
+
             <div class="filter-group">
                 <label for="stateFilter">Administrative State</label>
                 <select id="stateFilter">
-                    <option value="">Loading States...</option>
+                    <option value="" disabled selected>Select State...</option>
                 </select>
             </div>
 
             <div class="filter-group">
                 <label for="typeFilter">Infrastructure Type</label>
                 <select id="typeFilter">
-                    <option value="">Loading Asset Types...</option>
+                    <option value="" disabled selected>Select Asset Type...</option>
                 </select>
             </div>
 
             <button class="btn-apply" onclick="loadInfrastructureData()">
                 <span>Apply Filters</span>
             </button>
+        </div>
+
+        <!-- Filter Prompt / Instruction Card -->
+        <div id="filterPrompt" class="card" style="background: rgba(16, 185, 129, 0.05); border-color: rgba(16, 185, 129, 0.15); display: flex; flex-direction: row; align-items: center; gap: 10px; padding: 12px; font-size: 12px; line-height: 1.4; color: var(--text-secondary);">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-color); flex-shrink: 0;">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="12" y1="16" x2="12" y2="12"></line>
+                <line x1="12" y1="8" x2="12.01" y2="8"></line>
+            </svg>
+            <span>Please select a specific state and asset type to start exploring critical infrastructure.</span>
         </div>
 
         <!-- Stats Card -->
@@ -172,6 +194,9 @@
     <!-- Leaflet & MarkerCluster JS Scripts -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.4.1/dist/leaflet.markercluster.js"></script>
+
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
 
     <script src="{{ url_for('static', filename='js/map.js') }}"></script>
 </body>

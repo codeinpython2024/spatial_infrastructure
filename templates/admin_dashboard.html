@@ -490,9 +490,20 @@
         <!-- Right Side: Recent Insertions Feed -->
         <main class="admin-content">
             <div class="feed-container">
-                <div class="feed-header">
+                <div class="feed-header" style="flex-wrap: wrap; gap: 12px;">
                     <span class="feed-title">Administrative Assets Feed</span>
-                    <span style="font-size:12px; color:var(--text-secondary); background:var(--bg-primary); padding:4px 10px; border-radius:12px; border:1px solid var(--border-color);">Source: Admin Portal</span>
+                    
+                    <div style="display: flex; gap: 12px; align-items: center; width: 100%; max-width: 320px; margin-left: auto;">
+                        <div class="search-input-container">
+                            <input type="text" id="adminSearchQuery" placeholder="Search manual assets..." oninput="handleAdminSearch(event)">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="11" cy="11" r="8"></circle>
+                                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <span style="font-size:12px; color:var(--text-secondary); background:var(--bg-primary); padding:4px 10px; border-radius:12px; border:1px solid var(--border-color); flex-shrink: 0;">Source: Admin Portal</span>
                 </div>
 
                 <div class="table-responsive">
@@ -710,7 +721,7 @@
         }
 
         // AJAX Form Submission
-        async function submitForm(event, overrideProximity = false) {
+        async function submitForm(event, overrideProximity = false, overrideDuplicate = false) {
             if (event) event.preventDefault();
             
             const payload = {
@@ -721,7 +732,8 @@
                 lga: document.getElementById('lgaSelect').value,
                 lat: document.getElementById('latitude').value,
                 lon: document.getElementById('longitude').value,
-                override_lga_check: overrideProximity
+                override_lga_check: overrideProximity,
+                override_duplicate_check: overrideDuplicate
             };
 
             const isEdit = currentEditId !== null;
@@ -737,11 +749,16 @@
                 const result = await response.json();
                 
                 if (response.ok) {
-                    if (result.lga_warning) {
+                    if (result.duplicate_warning) {
+                        const confirmOverride = confirm(result.message);
+                        if (confirmOverride) {
+                            await submitForm(null, overrideProximity, true);
+                        }
+                    } else if (result.lga_warning) {
                         // Confirm from admin
                         const confirmOverride = confirm(result.message);
                         if (confirmOverride) {
-                            await submitForm(null, true);
+                            await submitForm(null, true, overrideDuplicate);
                         }
                     } else if (result.success) {
                         showToast(isEdit ? "Asset updated successfully!" : "Asset saved successfully!", "success");
@@ -877,19 +894,22 @@
                     toast.remove();
                 }, 300);
             }, 4000);
-        }
-
-        // Pagination State & Functions
+        }        // Pagination State & Functions
         let currentPage = 1;
         const pageSize = 10;
         let totalPages = 1;
+        let adminSearchQuery = '';
 
         async function fetchAssets(page = 1) {
             currentPage = page;
             const tbody = document.getElementById('assetsTableBody');
             
             try {
-                const response = await fetch(`/api/v1/admin/assets?page=${page}&limit=${pageSize}`);
+                let url = `/api/v1/admin/assets?page=${page}&limit=${pageSize}`;
+                if (adminSearchQuery) {
+                    url += `&q=${encodeURIComponent(adminSearchQuery)}`;
+                }
+                const response = await fetch(url);
                 const data = await response.json();
                 
                 if (response.ok && data.success) {
@@ -910,6 +930,15 @@
                 console.error(e);
                 showToast("Network error loading assets", "error");
             }
+        }
+
+        let searchTimeout;
+        function handleAdminSearch(event) {
+            clearTimeout(searchTimeout);
+            adminSearchQuery = event.target.value.trim();
+            searchTimeout = setTimeout(() => {
+                fetchAssets(1);
+            }, 300);
         }
 
         function renderTable(assets) {

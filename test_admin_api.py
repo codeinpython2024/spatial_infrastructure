@@ -41,7 +41,8 @@ class AdminApiTestCase(unittest.TestCase):
             "state": "Lagos",
             "lga": "Alimosho",
             "lat": "6.570",
-            "lon": "3.303"
+            "lon": "3.303",
+            "override_duplicate_check": True
         }
         
         response = self.client.post('/api/v1/admin/add-asset', 
@@ -124,6 +125,66 @@ class AdminApiTestCase(unittest.TestCase):
             del_data = json.loads(delete_response.data)
             self.assertTrue(del_data.get("success"))
             self.test_asset_ids.remove(aid)
+
+    def test_duplicate_check_and_override(self):
+        # 1. Add a base asset at a specific location
+        payload_base = {
+            "asset_name": "Base Healthcare Asset",
+            "asset_type": "healthcare",
+            "sub_type": "Clinic",
+            "state": "Lagos",
+            "lga": "Alimosho",
+            "lat": "6.5600",
+            "lon": "3.3100",
+            "override_duplicate_check": True,
+            "override_lga_check": True
+        }
+        response = self.client.post('/api/v1/admin/add-asset', 
+                                    data=json.dumps(payload_base),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 201)
+        data = json.loads(response.data)
+        base_id = data["asset"]["id"]
+        self.test_asset_ids.append(base_id)
+
+        # 2. Add another asset at the exact same location (should trigger duplicate warning)
+        payload_dup = {
+            "asset_name": "Duplicate Healthcare Asset",
+            "asset_type": "healthcare",
+            "sub_type": "Clinic",
+            "state": "Lagos",
+            "lga": "Alimosho",
+            "lat": "6.5600",
+            "lon": "3.3100"
+        }
+        response = self.client.post('/api/v1/admin/add-asset', 
+                                    data=json.dumps(payload_dup),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("duplicate_warning"))
+        self.assertIn("distance_m", data)
+        self.assertLessEqual(data["distance_m"], 5.0)
+
+        # 3. Add same duplicate asset with override
+        payload_dup_override = payload_dup.copy()
+        payload_dup_override["override_duplicate_check"] = True
+        payload_dup_override["override_lga_check"] = True
+        
+        response = self.client.post('/api/v1/admin/add-asset', 
+                                    data=json.dumps(payload_dup_override),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 201)
+        data = json.loads(response.data)
+        dup_id = data["asset"]["id"]
+        self.test_asset_ids.append(dup_id)
+
+        # 4. Clean up
+        for aid in [base_id, dup_id]:
+            if aid in self.test_asset_ids:
+                delete_response = self.client.post(f'/api/v1/admin/delete-asset/{aid}')
+                self.assertEqual(delete_response.status_code, 200)
+                self.test_asset_ids.remove(aid)
 
     def test_assets_pagination(self):
         # 1. Insert 12 dummy manual assets

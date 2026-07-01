@@ -583,3 +583,66 @@ body.light-theme .spinner-overlay {
     height: 14px;
     display: block;
 }
+
+/* Theme Toggle Button Styling to assimilate theme colors */
+.theme-toggle-btn {
+    background: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    border-radius: 8px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    padding: 8px;
+    outline: none;
+}
+
+.theme-toggle-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+    border-color: var(--text-secondary);
+}
+
+.theme-toggle-btn svg {
+    display: block;
+}
+
+/* Sleek Premium Search Bar input styling */
+.search-input-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+    width: 100%;
+}
+
+.search-input-container input {
+    width: 100%;
+    padding: 10px 14px 10px 36px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 13px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    outline: none;
+    font-family: var(--font-body);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-input-container input:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.search-input-container svg {
+    position: absolute;
+    left: 12px;
+    color: var(--text-secondary);
+    pointer-events: none;
+    transition: color 0.2s;
+}
+
+.search-input-container input:focus + svg {
+    color: var(--accent-color);
+}
