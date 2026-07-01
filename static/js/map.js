@@ -124,7 +124,7 @@ function getAssetIcon(type, subType) {
 }
 
 // Theme Toggle & Syncing
-let currentTheme = localStorage.getItem('theme') || 'dark';
+let currentTheme = localStorage.getItem('theme') || 'light';
 
 // Define Base Maps
 const osmMap = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
