@@ -821,6 +821,46 @@ def delete_asset(asset_id):
     finally:
         release_db_connection(conn)
 
+@app.route('/api/v1/admin/delete-assets', methods=['POST'])
+def delete_assets():
+    """Bulk deletes manual infrastructure assets."""
+    if not session.get('logged_in'):
+        return jsonify({"error": "Unauthorized"}), 401
+    
+    data = request.get_json() or {}
+    asset_ids = data.get('asset_ids', [])
+    if not asset_ids or not isinstance(asset_ids, list):
+        return jsonify({"error": "No asset IDs provided"}), 400
+        
+    try:
+        asset_ids = [int(aid) for aid in asset_ids]
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid asset ID format"}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection unavailable"}), 500
+    
+    try:
+        with conn.cursor() as cursor:
+            # Delete only matching assets having source = 'Admin Portal'
+            cursor.execute(
+                "DELETE FROM infrastructure_assets WHERE id = ANY(%s) AND source = 'Admin Portal' RETURNING id;",
+                (asset_ids,)
+            )
+            deleted_rows = cursor.fetchall()
+            deleted_count = len(deleted_rows)
+            conn.commit()
+            
+            logger.info(f"Admin bulk-deleted {deleted_count} manual assets: {asset_ids}")
+            return jsonify({"success": True, "deleted_count": deleted_count})
+    except Exception as e:
+        logger.exception("Error bulk deleting administrative assets:")
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
 if __name__ == '__main__':
     # Set debug=False in a production environment
     app.run(host='0.0.0.0', port=5000, debug=True)

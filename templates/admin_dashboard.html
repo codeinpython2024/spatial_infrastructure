@@ -480,6 +480,10 @@
                         </div>
                     </div>
 
+                    <button id="btnBulkDelete" class="btn-delete" style="display: none; padding: 6px 12px; font-size: 12px; border-radius: 6px; margin: 0; align-items: center; gap: 6px;" onclick="bulkDeleteAssets()">
+                        Delete Selected (<span id="bulkDeleteCount">0</span>)
+                    </button>
+
                     <span style="font-size:12px; color:var(--text-secondary); background:var(--bg-primary); padding:4px 10px; border-radius:12px; border:1px solid var(--border-color); flex-shrink: 0;">Source: Admin Portal</span>
                 </div>
 
@@ -487,6 +491,9 @@
                     <table class="assets-table" id="recentAssetsTable">
                         <thead>
                             <tr>
+                                <th style="width: 40px; text-align: center; vertical-align: middle;">
+                                    <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)" style="cursor: pointer; width: 15px; height: 15px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-primary);">
+                                </th>
                                 <th>Name</th>
                                 <th>Type</th>
                                 <th>Sub-type</th>
@@ -498,7 +505,7 @@
                         </thead>
                         <tbody id="assetsTableBody">
                             <tr id="empty-state-row">
-                                <td colspan="7">
+                                <td colspan="8">
                                     <div class="empty-state">
                                         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                                             <circle cx="12" cy="12" r="10"></circle>
@@ -805,6 +812,8 @@
                     if (currentEditId === id) {
                         cancelEdit();
                     }
+                    selectedAssetIds.delete(id);
+                    updateBulkDeleteButtonState();
                     fetchAssets(currentPage);
                 } else {
                     showToast(result.error || "Failed to delete asset", "error");
@@ -957,6 +966,10 @@
         let totalPages = 1;
         let adminSearchQuery = '';
 
+        // Bulk Selection State
+        let selectedAssetIds = new Set();
+        let currentAssets = [];
+
         async function fetchAssets(page = 1) {
             currentPage = page;
             const tbody = document.getElementById('assetsTableBody');
@@ -971,13 +984,14 @@
                 
                 if (response.ok && data.success) {
                     totalPages = data.total_pages;
+                    currentAssets = data.assets || [];
                     renderTable(data.assets);
                     renderPaginationControls(data.total_count, data.page, data.limit, data.total_pages);
                 } else {
                     showToast(data.error || "Failed to load assets", "error");
                     tbody.innerHTML = `
                         <tr>
-                            <td colspan="7" style="text-align:center; padding: 20px; color: var(--text-secondary);">
+                            <td colspan="8" style="text-align:center; padding: 20px; color: var(--text-secondary);">
                                 Failed to load assets: ${data.error || 'Unknown error'}
                             </td>
                         </tr>
@@ -1005,7 +1019,7 @@
             if (!assets || assets.length === 0) {
                 tbody.innerHTML = `
                     <tr id="empty-state-row">
-                        <td colspan="7">
+                        <td colspan="8">
                             <div class="empty-state">
                                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                                     <circle cx="12" cy="12" r="10"></circle>
@@ -1017,6 +1031,7 @@
                         </td>
                     </tr>
                 `;
+                updateSelectAllCheckboxState([]);
                 return;
             }
             
@@ -1029,7 +1044,12 @@
                 const safeState = asset.state.replace(/'/g, "\\'");
                 const safeLga = asset.lga.replace(/'/g, "\\'");
 
+                const isChecked = selectedAssetIds.has(asset.id) ? 'checked' : '';
+
                 tr.innerHTML = `
+                    <td style="text-align: center; vertical-align: middle;">
+                        <input type="checkbox" id="select-asset-${asset.id}" ${isChecked} onchange="toggleSelectAsset(${asset.id}, this.checked)" style="cursor: pointer; width: 14px; height: 14px;">
+                    </td>
                     <td><strong>${asset.name}</strong></td>
                     <td>
                         <span class="badge" style="background-color: var(--accent-glow); color: var(--accent-color); font-size:9px; font-weight:600; padding:2px 6px;">
@@ -1049,6 +1069,8 @@
                 `;
                 tbody.appendChild(tr);
             });
+            
+            updateSelectAllCheckboxState(assets);
         }
 
         function renderPaginationControls(totalCount, page, limit, totalPages) {
@@ -1102,6 +1124,112 @@
         function nextPage() {
             if (currentPage < totalPages) {
                 fetchAssets(currentPage + 1);
+            }
+        }
+
+        // Bulk Selection Actions
+        function toggleSelectAsset(id, checked) {
+            if (checked) {
+                selectedAssetIds.add(id);
+            } else {
+                selectedAssetIds.delete(id);
+            }
+            updateBulkDeleteButtonState();
+            updateSelectAllCheckboxState(currentAssets);
+        }
+
+        function toggleSelectAll(checkbox) {
+            if (!currentAssets || currentAssets.length === 0) return;
+            
+            currentAssets.forEach(asset => {
+                const itemCheckbox = document.getElementById(`select-asset-${asset.id}`);
+                if (itemCheckbox) {
+                    itemCheckbox.checked = checkbox.checked;
+                }
+                if (checkbox.checked) {
+                    selectedAssetIds.add(asset.id);
+                } else {
+                    selectedAssetIds.delete(asset.id);
+                }
+            });
+            updateBulkDeleteButtonState();
+        }
+
+        function updateSelectAllCheckboxState(visibleAssets) {
+            const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+            if (!selectAllCheckbox) return;
+            if (!visibleAssets || visibleAssets.length === 0) {
+                selectAllCheckbox.checked = false;
+                selectAllCheckbox.disabled = true;
+                return;
+            }
+            selectAllCheckbox.disabled = false;
+            const allSelected = visibleAssets.every(asset => selectedAssetIds.has(asset.id));
+            selectAllCheckbox.checked = allSelected;
+        }
+
+        function updateBulkDeleteButtonState() {
+            const btn = document.getElementById('btnBulkDelete');
+            const countSpan = document.getElementById('bulkDeleteCount');
+            if (!btn || !countSpan) return;
+            
+            const count = selectedAssetIds.size;
+            if (count > 0) {
+                btn.style.display = 'inline-flex';
+                btn.style.alignItems = 'center';
+                btn.style.gap = '6px';
+                countSpan.textContent = count;
+            } else {
+                btn.style.display = 'none';
+            }
+        }
+
+        async function bulkDeleteAssets() {
+            const count = selectedAssetIds.size;
+            if (count === 0) return;
+
+            const confirmed = await showConfirm({
+                title: 'Bulk Delete Assets',
+                message: `Are you sure you want to permanently delete all ${count} selected assets? This action cannot be undone.`,
+                okLabel: 'Delete All',
+                cancelLabel: 'Keep',
+                type: 'danger'
+            });
+            if (!confirmed) return;
+
+            try {
+                const response = await fetch('/api/v1/admin/delete-assets', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ asset_ids: Array.from(selectedAssetIds) })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    showToast(`Successfully deleted ${result.deleted_count} assets.`, "success");
+                    if (selectedAssetIds.has(currentEditId)) {
+                        cancelEdit();
+                    }
+                    selectedAssetIds.clear();
+                    updateBulkDeleteButtonState();
+                    
+                    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+                    if (selectAllCheckbox) selectAllCheckbox.checked = false;
+
+                    fetchAssets(currentPage).then(() => {
+                        if ((!currentAssets || currentAssets.length === 0) && currentPage > 1) {
+                            fetchAssets(currentPage - 1);
+                        }
+                    });
+                } else {
+                    showToast(result.error || "Failed to delete assets", "error");
+                }
+            } catch (e) {
+                console.error(e);
+                showToast("Server error during bulk deletion.", "error");
             }
         }
 

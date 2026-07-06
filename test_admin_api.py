@@ -264,5 +264,58 @@ class AdminApiTestCase(unittest.TestCase):
             finally:
                 release_db_connection(conn)
 
+    def test_bulk_delete(self):
+        # 1. Insert 3 dummy assets
+        conn = get_db_connection()
+        self.assertIsNotNone(conn)
+        inserted_ids = []
+        try:
+            with conn.cursor() as cursor:
+                for i in range(3):
+                    cursor.execute("""
+                        INSERT INTO infrastructure_assets (source, asset_name, asset_type, sub_type, state, lga, geom)
+                        VALUES ('Admin Portal', %s, 'healthcare', 'Clinic', 'Lagos', 'Alimosho', ST_SetSRID(ST_MakePoint(3.3029, 6.5699), 4326))
+                        RETURNING id;
+                    """, (f"Bulk Delete Dummy {i}",))
+                    aid = cursor.fetchone()[0]
+                    inserted_ids.append(aid)
+                    self.test_asset_ids.append(aid)
+                conn.commit()
+        finally:
+            release_db_connection(conn)
+
+        # 2. Call bulk delete API for these 3 assets
+        response = self.client.post('/api/v1/admin/delete-assets',
+                                    data=json.dumps({"asset_ids": inserted_ids}),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+        self.assertEqual(data.get("deleted_count"), 3)
+
+        # Ensure they are no longer in test_asset_ids for teardown, and verify they were deleted
+        for aid in inserted_ids:
+            if aid in self.test_asset_ids:
+                self.test_asset_ids.remove(aid)
+                
+        # 3. Verify they are deleted from DB
+        conn = get_db_connection()
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT COUNT(*) FROM infrastructure_assets WHERE id = ANY(%s);", (inserted_ids,))
+                count = cursor.fetchone()[0]
+                self.assertEqual(count, 0)
+        finally:
+            release_db_connection(conn)
+
+        # 4. Test unauthorized request (clear session)
+        with self.client.session_transaction() as sess:
+            sess['logged_in'] = False
+            
+        response = self.client.post('/api/v1/admin/delete-assets',
+                                    data=json.dumps({"asset_ids": [1]}),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 401)
+
 if __name__ == '__main__':
     unittest.main()
