@@ -243,8 +243,11 @@ def get_infrastructure():
     
     params = []
     if state_filter:
-        query += " AND state = %s"
-        params.append(state_filter)
+        if state_filter.lower() == 'fct':
+            query += " AND (LOWER(state) = 'fct' OR LOWER(state) LIKE '%%federal capital territory%%')"
+        else:
+            query += " AND LOWER(state) = LOWER(%s)"
+            params.append(state_filter)
     if type_filter:
         query += " AND asset_type = %s"
         params.append(type_filter)
@@ -813,8 +816,9 @@ def add_asset():
                 cursor.execute("""
                     SELECT MIN(ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography))
                     FROM infrastructure_assets
-                    WHERE state = %s AND lga = %s AND geom IS NOT NULL;
-                """, (lon, lat, state, lga))
+                    WHERE (LOWER(state) = LOWER(%s) OR (LOWER(%s) = 'fct' AND (LOWER(state) = 'fct' OR LOWER(state) LIKE '%%federal capital territory%%')))
+                      AND lga = %s AND geom IS NOT NULL;
+                """, (lon, lat, state, state, lga))
                 row = cursor.fetchone()
                 min_dist = row[0] if row else None
                 
@@ -956,8 +960,9 @@ def edit_asset(asset_id):
                 cursor.execute("""
                     SELECT MIN(ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography))
                     FROM infrastructure_assets
-                    WHERE state = %s AND lga = %s AND geom IS NOT NULL AND id != %s;
-                """, (lon, lat, state, lga, asset_id))
+                    WHERE (LOWER(state) = LOWER(%s) OR (LOWER(%s) = 'fct' AND (LOWER(state) = 'fct' OR LOWER(state) LIKE '%%federal capital territory%%')))
+                      AND lga = %s AND geom IS NOT NULL AND id != %s;
+                """, (lon, lat, state, state, lga, asset_id))
                 row = cursor.fetchone()
                 min_dist = row[0] if row else None
                 
