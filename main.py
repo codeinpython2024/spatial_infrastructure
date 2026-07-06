@@ -64,6 +64,8 @@ def admin_logout():
 @app.route('/admin/dashboard')
 @login_required
 def admin_dashboard():
+    from datetime import date
+    current_year = date.today().year
     """Admin control panel dashboard."""
     # Fetch states and asset types for dynamic dropdowns
     conn = get_db_connection()
@@ -92,7 +94,7 @@ def admin_dashboard():
                     'lat': row[6],
                     'lon': row[7]
                 })
-            return render_template('admin_dashboard.html', recent_assets=recent_assets)
+            return render_template('admin_dashboard.html', recent_assets=recent_assets, current_year=current_year)
     except Exception as e:
         logger.exception("Error loading admin dashboard:")
         return f"Error loading dashboard: {e}", 500
@@ -104,7 +106,6 @@ def admin_dashboard():
 def index():
     from datetime import date
     current_year = date.today().year
-    print(current_year)
     """Renders the main dashboard mapping interface."""
     return render_template('index.html', current_year=current_year)
 
