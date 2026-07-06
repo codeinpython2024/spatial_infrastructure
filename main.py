@@ -102,8 +102,11 @@ def admin_dashboard():
 
 @app.route('/')
 def index():
+    from datetime import date
+    current_year = date.today().year
+    print(current_year)
     """Renders the main dashboard mapping interface."""
-    return render_template('index.html')
+    return render_template('index.html', current_year=current_year)
 
 @app.route('/api/v1/boundary', methods=['GET'])
 def get_boundary():
