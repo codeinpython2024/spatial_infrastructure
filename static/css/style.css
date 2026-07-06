@@ -18,6 +18,7 @@
     --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
     --font-body: 'Inter', sans-serif;
     --font-display: 'Outfit', sans-serif;
+    --accent: #2563eb;
 }
 
 body.light-theme {
@@ -83,7 +84,8 @@ body {
 .sidebar-toggle-btn {
     position: absolute;
     top: 50%;
-    left: 360px; /* Sits exactly at the right edge of sidebar */
+    left: 360px;
+    /* Sits exactly at the right edge of sidebar */
     transform: translateY(-50%);
     width: 20px;
     height: 60px;
@@ -95,7 +97,8 @@ body {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    z-index: 2001; /* Layer on top of sidebar */
+    z-index: 2001;
+    /* Layer on top of sidebar */
     color: var(--text-secondary);
     box-shadow: 4px 0 10px rgba(0, 0, 0, 0.1);
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -652,7 +655,7 @@ body.light-theme .spinner-overlay {
     transition: color 0.2s;
 }
 
-.search-input-container input:focus + svg {
+.search-input-container input:focus+svg {
     color: var(--accent-color);
 }
 
@@ -696,10 +699,21 @@ body.light-theme .spinner-overlay {
     transform: translateX(0);
 }
 
-.toast-notification.toast-success { border-left-color: #10b981; }
-.toast-notification.toast-error   { border-left-color: #ef4444; }
-.toast-notification.toast-warning { border-left-color: #f59e0b; }
-.toast-notification.toast-info    { border-left-color: #3b82f6; }
+.toast-notification.toast-success {
+    border-left-color: #10b981;
+}
+
+.toast-notification.toast-error {
+    border-left-color: #ef4444;
+}
+
+.toast-notification.toast-warning {
+    border-left-color: #f59e0b;
+}
+
+.toast-notification.toast-info {
+    border-left-color: #3b82f6;
+}
 
 .toast-icon {
     flex-shrink: 0;
@@ -712,10 +726,21 @@ body.light-theme .spinner-overlay {
     margin-top: 1px;
 }
 
-.toast-success .toast-icon { color: #10b981; }
-.toast-error   .toast-icon { color: #ef4444; }
-.toast-warning .toast-icon { color: #f59e0b; }
-.toast-info    .toast-icon { color: #3b82f6; }
+.toast-success .toast-icon {
+    color: #10b981;
+}
+
+.toast-error .toast-icon {
+    color: #ef4444;
+}
+
+.toast-warning .toast-icon {
+    color: #f59e0b;
+}
+
+.toast-info .toast-icon {
+    color: #3b82f6;
+}
 
 .toast-body {
     flex: 1;
@@ -748,7 +773,10 @@ body.light-theme .spinner-overlay {
     align-items: center;
     transition: color 0.2s;
 }
-.toast-close:hover { color: var(--text-primary); }
+
+.toast-close:hover {
+    color: var(--text-primary);
+}
 
 /* Animated progress bar on toast */
 .toast-progress {
@@ -761,14 +789,31 @@ body.light-theme .spinner-overlay {
     animation: toastProgress 4s linear forwards;
     border-radius: 0 0 10px 10px;
 }
-.toast-success .toast-progress { background: #10b981; }
-.toast-error   .toast-progress { background: #ef4444; }
-.toast-warning .toast-progress { background: #f59e0b; }
-.toast-info    .toast-progress { background: #3b82f6; }
+
+.toast-success .toast-progress {
+    background: #10b981;
+}
+
+.toast-error .toast-progress {
+    background: #ef4444;
+}
+
+.toast-warning .toast-progress {
+    background: #f59e0b;
+}
+
+.toast-info .toast-progress {
+    background: #3b82f6;
+}
 
 @keyframes toastProgress {
-    from { transform: scaleX(1); }
-    to   { transform: scaleX(0); }
+    from {
+        transform: scaleX(1);
+    }
+
+    to {
+        transform: scaleX(0);
+    }
 }
 
 /* ============================================================
@@ -797,7 +842,9 @@ body.light-theme .spinner-overlay {
     margin-bottom: 14px;
 }
 
-.inline-warning svg { flex-shrink: 0; }
+.inline-warning svg {
+    flex-shrink: 0;
+}
 
 body.light-theme .inline-warning {
     background: rgba(239, 68, 68, 0.05);
@@ -912,6 +959,7 @@ body.light-theme .inline-warning {
     border-color: var(--border-color) !important;
     color: var(--text-secondary);
 }
+
 .confirm-btn-cancel:hover {
     color: var(--text-primary);
     background: var(--bg-primary);
@@ -921,6 +969,7 @@ body.light-theme .inline-warning {
     background: #ef4444;
     color: #fff;
 }
+
 .confirm-btn-ok:hover {
     background: #dc2626;
     box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
@@ -929,6 +978,7 @@ body.light-theme .inline-warning {
 .confirm-btn-ok.warning {
     background: #f59e0b;
 }
+
 .confirm-btn-ok.warning:hover {
     background: #d97706;
     box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
@@ -946,20 +996,20 @@ body.light-theme .inline-warning {
         z-index: 2000;
         box-shadow: var(--card-shadow);
     }
-    
+
     #sidebar.collapsed {
         margin-left: -290px;
     }
-    
+
     .sidebar-toggle-btn {
         left: 290px;
         z-index: 2001;
     }
-    
+
     .sidebar-toggle-btn.collapsed {
         left: 0;
     }
-    
+
     #map {
         position: absolute;
         top: 0;
