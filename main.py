@@ -137,7 +137,15 @@ def get_boundary():
 
 @app.route('/api/v1/states', methods=['GET'])
 def get_states():
-    """Returns a list of all unique states containing infrastructure assets."""
+    """Returns a list of all unique states containing infrastructure assets, merged with all 36 Nigerian states + FCT."""
+    standard_states = [
+        "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue", "Borno", 
+        "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu", "FCT", "Gombe", 
+        "Imo", "Jigawa", "Kaduna", "Kano", "Katsina", "Kebbi", "Kogi", "Kwara", 
+        "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo", "Osun", "Oyo", "Plateau", 
+        "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara"
+    ]
+    
     conn = get_db_connection()
     if not conn:
         logger.error("Database connection unavailable for fetching states.")
@@ -145,14 +153,38 @@ def get_states():
 
     try:
         with conn.cursor() as cursor:
-            cursor.execute("SELECT DISTINCT state FROM infrastructure_assets WHERE state IS NOT NULL ORDER BY state;")
-            states = [row[0] for row in cursor.fetchall()]
-            return jsonify({"states": states})
+            cursor.execute("SELECT DISTINCT state FROM infrastructure_assets WHERE state IS NOT NULL;")
+            db_states = [row[0] for row in cursor.fetchall()]
     except Exception as e:
         logger.exception("Error fetching unique states:")
         return jsonify({"error": str(e)}), 500
     finally:
         release_db_connection(conn)
+
+    # Use a dictionary to map case-insensitive normalized names to their desired display casing
+    state_map = {}
+    
+    # 1. Initialize with standard states
+    for state in standard_states:
+        state_map[state.lower()] = state
+        
+    # 2. Add database states case-insensitively
+    for state in db_states:
+        cleaned = state.strip()
+        lower_name = cleaned.lower()
+        
+        # Explicitly map any variation of FCT/Federal Capital Territory to "FCT"
+        if lower_name == 'fct' or 'federal capital territory' in lower_name:
+            state_map['fct'] = 'FCT'
+        else:
+            # If not a standard state, use Title Case
+            if lower_name not in state_map:
+                state_map[lower_name] = cleaned.title()
+                
+    # Sort alphabetically
+    sorted_states = sorted(list(state_map.values()), key=lambda x: x.lower())
+    
+    return jsonify({"states": sorted_states})
 
 @app.route('/api/v1/asset-types', methods=['GET'])
 def get_asset_types():

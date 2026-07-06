@@ -453,5 +453,23 @@ class AdminApiTestCase(unittest.TestCase):
         self.assertEqual(data["failed_rows"], 1)
         self.assertIn("contains forbidden characters", data["errors"][0])
 
+    def test_states_list_deduplication(self):
+        # 1. Fetch states list from API
+        response = self.client.get('/api/v1/states')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        states = data.get("states", [])
+        
+        # Verify FCT is present and appears only once (case-insensitively)
+        fct_occurrences = [s for s in states if s.lower() == 'fct']
+        self.assertEqual(len(fct_occurrences), 1)
+        self.assertEqual(fct_occurrences[0], "FCT")
+        
+        # Verify other standard Nigerian states are present (even if no DB records exist)
+        self.assertIn("Abia", states)
+        self.assertIn("Yobe", states)
+        self.assertIn("Zamfara", states)
+        self.assertIn("Lagos", states)
+
 if __name__ == '__main__':
     unittest.main()
