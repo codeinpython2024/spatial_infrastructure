@@ -15,6 +15,23 @@ class AdminApiTestCase(unittest.TestCase):
             
         self.test_asset_ids = []
 
+        # Clean up database of test remnants to ensure clean test state
+        conn = get_db_connection()
+        if conn:
+            try:
+                with conn.cursor() as cursor:
+                    cursor.execute("""
+                        DELETE FROM infrastructure_assets 
+                        WHERE source = 'Admin Portal' 
+                          AND (asset_name LIKE 'Test %' OR asset_name LIKE 'CSV %' OR asset_name LIKE 'Pagination %' OR asset_name LIKE 'Bulk Delete %' OR asset_name LIKE 'Legacy %');
+                    """)
+                    conn.commit()
+            except Exception as e:
+                print(f"Error in setUp DB cleanup: {e}")
+                conn.rollback()
+            finally:
+                release_db_connection(conn)
+
     def tearDown(self):
         # Clean up any created assets
         if self.test_asset_ids:
@@ -36,7 +53,7 @@ class AdminApiTestCase(unittest.TestCase):
         # Coordinates very close (distance ~ 0 km)
         payload_close = {
             "asset_name": "Test Close Asset",
-            "asset_type": "healthcare",
+            "asset_type": "health",
             "sub_type": "Clinic",
             "state": "Lagos",
             "lga": "Alimosho",
@@ -58,7 +75,7 @@ class AdminApiTestCase(unittest.TestCase):
         # Without override_lga_check
         payload_far = {
             "asset_name": "Test Far Asset",
-            "asset_type": "healthcare",
+            "asset_type": "health",
             "sub_type": "Clinic",
             "state": "Lagos",
             "lga": "Alimosho",
@@ -88,10 +105,9 @@ class AdminApiTestCase(unittest.TestCase):
         far_asset_id = data["asset"]["id"]
         self.test_asset_ids.append(far_asset_id)
         
-        # 4. Edit the asset: move it to another out-of-bounds location without override
         payload_edit_far = {
             "asset_name": "Updated Far Asset",
-            "asset_type": "healthcare",
+            "asset_type": "health",
             "sub_type": "Clinic",
             "state": "Lagos",
             "lga": "Alimosho",
@@ -130,7 +146,7 @@ class AdminApiTestCase(unittest.TestCase):
         # 1. Add a base asset at a specific location
         payload_base = {
             "asset_name": "Base Healthcare Asset",
-            "asset_type": "healthcare",
+            "asset_type": "health",
             "sub_type": "Clinic",
             "state": "Lagos",
             "lga": "Alimosho",
@@ -150,7 +166,7 @@ class AdminApiTestCase(unittest.TestCase):
         # 2. Add another asset at the exact same location (should trigger duplicate warning)
         payload_dup = {
             "asset_name": "Duplicate Healthcare Asset",
-            "asset_type": "healthcare",
+            "asset_type": "health",
             "sub_type": "Clinic",
             "state": "Lagos",
             "lga": "Alimosho",
@@ -195,7 +211,7 @@ class AdminApiTestCase(unittest.TestCase):
                 for i in range(12):
                     cursor.execute("""
                         INSERT INTO infrastructure_assets (source, asset_name, asset_type, sub_type, state, lga, geom)
-                        VALUES ('Admin Portal', %s, 'healthcare', 'Clinic', 'Lagos', 'Alimosho', ST_SetSRID(ST_MakePoint(3.3029, 6.5699), 4326))
+                        VALUES ('Admin Portal', %s, 'health', 'Clinic', 'Lagos', 'Alimosho', ST_SetSRID(ST_MakePoint(3.3029, 6.5699), 4326))
                         RETURNING id;
                     """, (f"Pagination Dummy {i}",))
                     self.test_asset_ids.append(cursor.fetchone()[0])
@@ -232,6 +248,7 @@ class AdminApiTestCase(unittest.TestCase):
             "CSV Far School,education,Primary School,Lagos,Alimosho,9.0820,7.5333\n"
             "CSV Invalid Boundary,healthcare,Clinic,Lagos,Alimosho,40.0,-74.0\n"
             "CSV Missing Fields,healthcare,Clinic,,Alimosho,6.5699,3.3029\n"
+            "CSV Invalid Type,invalid_type,Clinic,Lagos,Alimosho,6.5699,3.3029\n"
         )
 
         response = self.client.post('/api/v1/admin/upload-csv',
@@ -240,18 +257,21 @@ class AdminApiTestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         data = json.loads(response.data)
         self.assertTrue(data.get("success"))
-        self.assertEqual(data["total_rows"], 4)
+        self.assertEqual(data["total_rows"], 5)
         self.assertEqual(data["inserted_rows"], 2)
-        self.assertEqual(data["failed_rows"], 2)
+        self.assertEqual(data["failed_rows"], 3)
         
-        # 1 warning (CSV Far School is > 25km away from Lagos Alimosho assets)
-        self.assertEqual(len(data["warnings"]), 1)
-        self.assertIn("Row 2", data["warnings"][0])
+        # 3 warnings (Row 1 was converted to health, Row 2 is > 25km away, Row 3 was converted to health)
+        self.assertEqual(len(data["warnings"]), 3)
+        self.assertIn("Converted asset type", data["warnings"][0])
+        self.assertIn("Row 2", data["warnings"][1])
+        self.assertIn("Converted asset type", data["warnings"][2])
         
-        # 2 errors (Row 3 is outside Nigeria, Row 4 misses state field)
-        self.assertEqual(len(data["errors"]), 2)
+        # 3 errors (Row 3 is outside Nigeria, Row 4 misses state, Row 5 is invalid type)
+        self.assertEqual(len(data["errors"]), 3)
         self.assertIn("outside of Nigeria", data["errors"][0])
         self.assertIn("Missing required fields", data["errors"][1])
+        self.assertIn("Invalid asset type 'invalid_type'", data["errors"][2])
 
         # Track the inserted CSV assets for tearDown cleanup
         conn = get_db_connection()
@@ -274,7 +294,7 @@ class AdminApiTestCase(unittest.TestCase):
                 for i in range(3):
                     cursor.execute("""
                         INSERT INTO infrastructure_assets (source, asset_name, asset_type, sub_type, state, lga, geom)
-                        VALUES ('Admin Portal', %s, 'healthcare', 'Clinic', 'Lagos', 'Alimosho', ST_SetSRID(ST_MakePoint(3.3029, 6.5699), 4326))
+                        VALUES ('Admin Portal', %s, 'health', 'Clinic', 'Lagos', 'Alimosho', ST_SetSRID(ST_MakePoint(3.3029, 6.5699), 4326))
                         RETURNING id;
                     """, (f"Bulk Delete Dummy {i}",))
                     aid = cursor.fetchone()[0]
@@ -316,6 +336,122 @@ class AdminApiTestCase(unittest.TestCase):
                                     data=json.dumps({"asset_ids": [1]}),
                                     content_type='application/json')
         self.assertEqual(response.status_code, 401)
+
+    def test_asset_type_validation(self):
+        # 1. Try adding asset with invalid type
+        payload_invalid = {
+            "asset_name": "Invalid Type Asset",
+            "asset_type": "invalid_type",
+            "sub_type": "Clinic",
+            "state": "Lagos",
+            "lga": "Alimosho",
+            "lat": "6.570",
+            "lon": "3.303"
+        }
+        response = self.client.post('/api/v1/admin/add-asset', 
+                                    data=json.dumps(payload_invalid),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.data)
+        self.assertIn("Invalid asset type", data.get("error"))
+
+        # 2. Try adding asset with legacy type 'healthcare' (should be mapped to 'health' and succeed)
+        payload_legacy = {
+            "asset_name": "Legacy Type Asset",
+            "asset_type": "healthcare",
+            "sub_type": "Clinic",
+            "state": "Lagos",
+            "lga": "Alimosho",
+            "lat": "6.570",
+            "lon": "3.303",
+            "override_duplicate_check": True
+        }
+        response = self.client.post('/api/v1/admin/add-asset', 
+                                    data=json.dumps(payload_legacy),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 201)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+        self.assertEqual(data["asset"]["type"], "health")
+        asset_id = data["asset"]["id"]
+        self.test_asset_ids.append(asset_id)
+
+        # 3. Try editing asset to an invalid type
+        payload_edit_invalid = payload_legacy.copy()
+        payload_edit_invalid["asset_type"] = "super_invalid"
+        response = self.client.post(f'/api/v1/admin/edit-asset/{asset_id}', 
+                                    data=json.dumps(payload_edit_invalid),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.data)
+        self.assertIn("Invalid asset type", data.get("error"))
+
+    def test_state_normalization(self):
+        # 1. Test adding asset with "Kogi State" -> normalized to "Kogi"
+        payload = {
+            "asset_name": "Test State Norm 1",
+            "asset_type": "health",
+            "sub_type": "Clinic",
+            "state": "Kogi State",
+            "lga": "Lokoja",
+            "lat": "7.8023",
+            "lon": "6.7431",
+            "override_duplicate_check": True
+        }
+        response = self.client.post('/api/v1/admin/add-asset', 
+                                    data=json.dumps(payload),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 201)
+        data = json.loads(response.data)
+        self.assertEqual(data["asset"]["state"], "Kogi")
+        self.test_asset_ids.append(data["asset"]["id"])
+
+        # 2. Test adding asset with "Federal Capital Territory" -> normalized to "FCT"
+        payload_fct = payload.copy()
+        payload_fct["asset_name"] = "Test State Norm 2"
+        payload_fct["state"] = "Federal Capital Territory"
+        payload_fct["lga"] = "Municipal Area Council"
+        payload_fct["lat"] = "9.0765"
+        payload_fct["lon"] = "7.3986"
+        response = self.client.post('/api/v1/admin/add-asset', 
+                                    data=json.dumps(payload_fct),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 201)
+        data = json.loads(response.data)
+        self.assertEqual(data["asset"]["state"], "FCT")
+        self.test_asset_ids.append(data["asset"]["id"])
+
+    def test_forbidden_characters(self):
+        # 1. Test adding asset with forbidden character in state (e.g. "Kogi!")
+        payload = {
+            "asset_name": "Forbidden Char Test",
+            "asset_type": "health",
+            "sub_type": "Clinic",
+            "state": "Kogi!",
+            "lga": "Lokoja",
+            "lat": "7.8023",
+            "lon": "6.7431"
+        }
+        response = self.client.post('/api/v1/admin/add-asset', 
+                                    data=json.dumps(payload),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.data)
+        self.assertIn("contains forbidden characters", data.get("error"))
+
+        # 2. Test CSV upload with forbidden characters
+        import io
+        csv_content = (
+            "asset_name,asset_type,sub_type,state,lga,latitude,longitude\n"
+            "CSV Bad Char,health,Clinic(Private),Lagos,Alimosho,6.5699,3.3029\n"
+        )
+        response = self.client.post('/api/v1/admin/upload-csv',
+                                    data={'file': (io.BytesIO(csv_content.encode('utf-8')), 'test_bad_char.csv')},
+                                    content_type='multipart/form-data')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertEqual(data["failed_rows"], 1)
+        self.assertIn("contains forbidden characters", data["errors"][0])
 
 if __name__ == '__main__':
     unittest.main()

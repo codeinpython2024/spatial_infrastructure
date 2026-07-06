@@ -347,12 +347,16 @@
                             <label for="assetType">Asset Type *</label>
                             <select id="assetType" required onchange="handleTypeChange()">
                                 <option value="">Select Type</option>
-                                <option value="healthcare">Healthcare</option>
+                                <option value="culture">Culture</option>
+                                <option value="defence">Defence</option>
                                 <option value="education">Education</option>
-                                <option value="utility">Energy & Utility</option>
-                                <option value="transport">Transport Hub</option>
+                                <option value="financial">Financial</option>
+                                <option value="food">Food</option>
                                 <option value="government">Government</option>
-                                <option value="financial">Financial Building</option>
+                                <option value="health">Health</option>
+                                <option value="space">Space</option>
+                                <option value="transport">Transport</option>
+                                <option value="utility">Energy & Utility</option>
                             </select>
                         </div>
                         <div class="filter-group">
@@ -709,12 +713,16 @@
             const subTypeInput = document.getElementById('subType');
             
             // Auto suggest subtype placeholder based on selection
-            if (type === 'healthcare') subTypeInput.placeholder = 'e.g. General Hospital, Clinic';
+            if (type === 'healthcare' || type === 'health') subTypeInput.placeholder = 'e.g. General Hospital, Clinic';
             else if (type === 'education') subTypeInput.placeholder = 'e.g. Primary School, University';
             else if (type === 'utility') subTypeInput.placeholder = 'e.g. Electricity Substation, Water Works';
             else if (type === 'transport') subTypeInput.placeholder = 'e.g. Airport Terminal, Bus Station';
             else if (type === 'government') subTypeInput.placeholder = 'e.g. Secretariat, Local Govt Hall';
             else if (type === 'financial') subTypeInput.placeholder = 'e.g. Bank Branch, ATM';
+            else if (type === 'culture') subTypeInput.placeholder = 'e.g. Museum, Gallery, Library';
+            else if (type === 'food') subTypeInput.placeholder = 'e.g. Market, Food Bank, Restaurant';
+            else if (type === 'defence') subTypeInput.placeholder = 'e.g. Military Base, Police Station';
+            else if (type === 'space') subTypeInput.placeholder = 'e.g. Satellite Station, Observatory';
         }
 
         // AJAX Form Submission

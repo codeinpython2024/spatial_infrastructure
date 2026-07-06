@@ -16,7 +16,11 @@ const typeColors = {
     'government': '#06b6d4',
     'financial': '#10b981',
     'bank': '#10b981',
-    'atm': '#10b981'
+    'atm': '#10b981',
+    'culture': '#ec4899',
+    'food': '#f97316',
+    'defence': '#475569',
+    'space': '#6366f1'
 };
 
 // Get matching color for asset type
@@ -308,7 +312,11 @@ async function initializeFilters() {
             typesData.asset_types.forEach(type => {
                 const option = document.createElement('option');
                 option.value = type;
-                option.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+                if (type === 'utility') {
+                    option.textContent = "Energy & Utility";
+                } else {
+                    option.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+                }
                 typeSelect.appendChild(option);
             });
         } else {

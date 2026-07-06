@@ -156,22 +156,12 @@ def get_states():
 
 @app.route('/api/v1/asset-types', methods=['GET'])
 def get_asset_types():
-    """Returns a list of all unique asset types containing infrastructure assets."""
-    conn = get_db_connection()
-    if not conn:
-        logger.error("Database connection unavailable for fetching asset types.")
-        return jsonify({"error": "Database connection unavailable"}), 500
-
-    try:
-        with conn.cursor() as cursor:
-            cursor.execute("SELECT DISTINCT asset_type FROM infrastructure_assets WHERE asset_type IS NOT NULL ORDER BY asset_type;")
-            asset_types = [row[0] for row in cursor.fetchall()]
-            return jsonify({"asset_types": asset_types})
-    except Exception as e:
-        logger.exception("Error fetching unique asset types:")
-        return jsonify({"error": str(e)}), 500
-    finally:
-        release_db_connection(conn)
+    """Returns a list of all approved asset types."""
+    approved_types = [
+        "culture", "defence", "education", "financial", "food", 
+        "government", "health", "space", "transport", "utility"
+    ]
+    return jsonify({"asset_types": approved_types})
 
 @app.route('/api/v1/infrastructure', methods=['GET'])
 def get_infrastructure():
@@ -442,6 +432,99 @@ def get_admin_assets():
     finally:
         release_db_connection(conn)
 
+def normalize_state_name(state_str):
+    """Normalizes state names: maps 'Federal Capital Territory' to 'FCT' and removes 'State' suffixes."""
+    if not state_str:
+        return ""
+    state_str = state_str.strip()
+    
+    lower_state = state_str.lower()
+    if "federal capital territory" in lower_state or lower_state == "fct":
+        return "FCT"
+        
+    import re
+    # Remove the word "state" if it is a whole word (case-insensitive)
+    cleaned = re.sub(r'\bstate\b', '', state_str, flags=re.IGNORECASE).strip()
+    # Remove duplicate spaces
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+    
+    if cleaned.lower() == 'fct':
+        return 'FCT'
+    return cleaned.title()
+
+def contains_forbidden_chars(val_str):
+    """Returns True if the string value contains any of the forbidden characters: /, (, ), ,, !"""
+    if not val_str:
+        return False
+    forbidden = {'/', '(', ')', ',', '!'}
+    return any(char in str(val_str) for char in forbidden)
+
+def find_similar_type(raw_type):
+    """Finds a similar approved type for a given raw asset type string."""
+    if not raw_type:
+        return None
+    normalized = raw_type.strip().lower()
+    
+    APPROVED_TYPES = {"culture", "defence", "education", "financial", "food", "government", "health", "space", "transport", "utility"}
+    
+    # 1. Direct match check
+    if normalized in APPROVED_TYPES:
+        return normalized
+        
+    # 2. Hardcoded mapping of synonyms & common aliases
+    mappings = {
+        'healthcare': 'health',
+        'hospital': 'health',
+        'clinic': 'health',
+        'medical': 'health',
+        'school': 'education',
+        'university': 'education',
+        'college': 'education',
+        'academy': 'education',
+        'bank': 'financial',
+        'atm': 'financial',
+        'finance': 'financial',
+        'energy': 'utility',
+        'power': 'utility',
+        'electricity': 'utility',
+        'water': 'utility',
+        'airport': 'transport',
+        'railway': 'transport',
+        'rail': 'transport',
+        'bus': 'transport',
+        'station': 'transport',
+        'transit': 'transport',
+        'government': 'government',
+        'gov': 'government',
+        'admin': 'government',
+        'museum': 'culture',
+        'library': 'culture',
+        'gallery': 'culture',
+        'theater': 'culture',
+        'market': 'food',
+        'restaurant': 'food',
+        'supermarket': 'food',
+        'grocery': 'food',
+        'defense': 'defence',
+        'military': 'defence',
+        'police': 'defence',
+        'security': 'defence',
+        'satellite': 'space',
+        'observatory': 'space'
+    }
+    
+    # Check if mappings key is a substring of normalized or vice-versa
+    for key, val in mappings.items():
+        if key in normalized or normalized in key:
+            return val
+            
+    # 3. Substring check against approved types
+    for app_type in APPROVED_TYPES:
+        if app_type in normalized or normalized in app_type:
+            return app_type
+            
+    return None
+
 @app.route('/api/v1/admin/upload-csv', methods=['POST'])
 def upload_csv():
     """Parses a CSV file containing administrative assets, validates them, and performs a bulk insert."""
@@ -486,19 +569,60 @@ def upload_csv():
         errors = []
         
         with conn.cursor() as cursor:
+            APPROVED_TYPES = {
+                "culture", "defence", "education", "financial", "food", 
+                "government", "health", "space", "transport", "utility"
+            }
             for idx, row in enumerate(rows, start=1):
                 name = row.get('asset_name')
-                asset_type = row.get('asset_type')
+                raw_type = row.get('asset_type')
                 sub_type = row.get('sub_type') or 'General'
                 state = row.get('state')
                 lga = row.get('lga') or 'N/A'
                 lat_str = row.get('latitude')
                 lon_str = row.get('longitude')
                 
-                if not all([name, asset_type, state, lat_str, lon_str]):
+                if not all([name, raw_type, state, lat_str, lon_str]):
                     failed_count += 1
                     errors.append(f"Row {idx}: Missing required fields.")
                     continue
+                
+                # Check for forbidden characters in specific columns
+                fields_to_check = {
+                    "asset_type": raw_type,
+                    "sub_type": sub_type,
+                    "state": state,
+                    "lga": lga,
+                    "latitude": lat_str,
+                    "longitude": lon_str
+                }
+                has_forbidden = False
+                for field_name, field_val in fields_to_check.items():
+                    if field_val and contains_forbidden_chars(str(field_val)):
+                        failed_count += 1
+                        errors.append(f"Row {idx}: Field '{field_name}' contains forbidden characters (/, (, ), ,, !).")
+                        has_forbidden = True
+                        break
+                if has_forbidden:
+                    continue
+                
+                # Normalize state name and notify user if changed
+                normalized_state = normalize_state_name(state)
+                if normalized_state != state.strip():
+                    warnings.append(f"Row {idx}: Converted state '{state}' to '{normalized_state}'.")
+                state = normalized_state
+
+                # Normalize and map to similar approved asset type
+                asset_type = find_similar_type(raw_type)
+                
+                if not asset_type:
+                    failed_count += 1
+                    errors.append(f"Row {idx}: Invalid asset type '{raw_type}'. No similar approved type found. Must be one of: {', '.join(sorted(APPROVED_TYPES))}.")
+                    continue
+                
+                # Notify user if the type was converted/mapped
+                if asset_type != raw_type.strip().lower():
+                    warnings.append(f"Row {idx}: Converted asset type '{raw_type}' to similar approved type '{asset_type}'.")
                 
                 try:
                     lat = float(lat_str)
@@ -583,6 +707,32 @@ def add_asset():
     if not all([asset_name, asset_type, state, lat_str, lon_str]):
         return jsonify({"error": "Missing required fields"}), 400
 
+    # Check for forbidden characters in specific fields
+    fields_to_check = {
+        "asset_type": asset_type,
+        "sub_type": sub_type,
+        "state": state,
+        "lga": lga,
+        "latitude": lat_str,
+        "longitude": lon_str
+    }
+    for field_name, field_val in fields_to_check.items():
+        if field_val and contains_forbidden_chars(str(field_val)):
+            return jsonify({"error": f"Field '{field_name}' contains forbidden characters (/, (, ), ,, !)."}), 400
+
+    # Normalize state name
+    state = normalize_state_name(state)
+
+    # Normalize and validate asset type
+    APPROVED_TYPES = {
+        "culture", "defence", "education", "financial", "food", 
+        "government", "health", "space", "transport", "utility"
+    }
+    normalized_type = find_similar_type(asset_type)
+    if not normalized_type:
+        return jsonify({"error": f"Invalid asset type. Must be one of: {', '.join(sorted(APPROVED_TYPES))}"}), 400
+    asset_type = normalized_type
+
     try:
         lat = float(lat_str)
         lon = float(lon_str)
@@ -613,7 +763,7 @@ def add_asset():
                     SELECT asset_name, state, lga, ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography) as dist
                     FROM infrastructure_assets
                     WHERE asset_type = %s AND geom IS NOT NULL
-                      AND ST_DWithin(geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography, 50)
+                      AND ST_DWithin(geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography, 20)
                     ORDER BY dist
                     LIMIT 1;
                 """, (lon, lat, asset_type, lon, lat))
@@ -695,6 +845,32 @@ def edit_asset(asset_id):
     if not all([asset_name, asset_type, state, lat_str, lon_str]):
         return jsonify({"error": "Missing required fields"}), 400
 
+    # Check for forbidden characters in specific fields
+    fields_to_check = {
+        "asset_type": asset_type,
+        "sub_type": sub_type,
+        "state": state,
+        "lga": lga,
+        "latitude": lat_str,
+        "longitude": lon_str
+    }
+    for field_name, field_val in fields_to_check.items():
+        if field_val and contains_forbidden_chars(str(field_val)):
+            return jsonify({"error": f"Field '{field_name}' contains forbidden characters (/, (, ), ,, !)."}), 400
+
+    # Normalize state name
+    state = normalize_state_name(state)
+
+    # Normalize and validate asset type
+    APPROVED_TYPES = {
+        "culture", "defence", "education", "financial", "food", 
+        "government", "health", "space", "transport", "utility"
+    }
+    normalized_type = find_similar_type(asset_type)
+    if not normalized_type:
+        return jsonify({"error": f"Invalid asset type. Must be one of: {', '.join(sorted(APPROVED_TYPES))}"}), 400
+    asset_type = normalized_type
+
     try:
         lat = float(lat_str)
         lon = float(lon_str)
@@ -730,7 +906,7 @@ def edit_asset(asset_id):
                     SELECT asset_name, state, lga, ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography) as dist
                     FROM infrastructure_assets
                     WHERE asset_type = %s AND id != %s AND geom IS NOT NULL
-                      AND ST_DWithin(geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography, 50)
+                      AND ST_DWithin(geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography, 20)
                     ORDER BY dist
                     LIMIT 1;
                 """, (lon, lat, asset_type, asset_id, lon, lat))
