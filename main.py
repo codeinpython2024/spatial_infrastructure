@@ -684,8 +684,9 @@ def upload_csv():
                 cursor.execute("""
                     SELECT MIN(ST_Distance(geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography))
                     FROM infrastructure_assets
-                    WHERE state = %s AND lga = %s AND geom IS NOT NULL;
-                """, (lon, lat, state, lga))
+                    WHERE (LOWER(state) = LOWER(%s) OR (LOWER(%s) = 'fct' AND (LOWER(state) = 'fct' OR LOWER(state) LIKE '%%federal capital territory%%')))
+                      AND lga = %s AND geom IS NOT NULL;
+                """, (lon, lat, state, state, lga))
                 row_dist = cursor.fetchone()
                 min_dist = row_dist[0] if row_dist else None
                 
