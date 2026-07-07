@@ -88,27 +88,46 @@ function getAssetIcon(type, subType) {
                     `;
         }
     } else if (normalizedType.includes('government')) {
-        // Civic hall/Columns icon
+        // House/home icon
         svgContent = `
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M4 22h16"></path>
-                        <path d="M4 11h16"></path>
-                        <path d="M6 11v11"></path>
-                        <path d="M10 11v11"></path>
-                        <path d="M14 11v11"></path>
-                        <path d="M18 11v11"></path>
-                        <path d="M12 2L2 7h20L12 2z"></path>
+                        <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                        <polyline points="9 22 9 12 15 12 15 22"></polyline>
                     </svg>
                 `;
     } else if (normalizedType.includes('financial') || normalizedType.includes('bank') || normalizedType.includes('atm')) {
-        // Dollar sign icon
+        // Naira symbol (N with double horizontal strokes)
         svgContent = `
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M6 4v16"></path>
-                        <path d="M6 4l12 16"></path>
-                        <path d="M18 4v16"></path>
-                        <path d="M4 10h16"></path>
-                        <path d="M4 14h16"></path>
+                        <path d="M6 4v16M6 4l12 16M18 4v16M4 10h16M4 14h16"></path>
+                    </svg>
+                `;
+    } else if (normalizedType.includes('culture')) {
+        // Civic columns / Temple icon
+        svgContent = `
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4 22h16M4 11h16M6 11v11M10 11v11M14 11v11M18 11v11M12 2L2 7h20L12 2z"></path>
+                    </svg>
+                `;
+    } else if (normalizedType.includes('defence')) {
+        // Shield icon
+        svgContent = `
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                    </svg>
+                `;
+    } else if (normalizedType.includes('space')) {
+        // Satellite / Telescope icon
+        svgContent = `
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M4.5 16.5c-1.5 1.26-2 3.5-2 3.5s2.24-.5 3.5-2M15 9l-9 9M9 15l-3 3M19 5c.75-.75.75-2 0-2.5a1.84 1.84 0 0 0-2.5 0l-5.5 5.5l5.5 5.5l5.5-5.5z"></path>
+                    </svg>
+                `;
+    } else if (normalizedType.includes('food')) {
+        // Shopping bag icon
+        svgContent = `
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0"></path>
                     </svg>
                 `;
     } else {
