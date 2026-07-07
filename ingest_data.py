@@ -19,11 +19,13 @@ DB_PORT = os.environ.get("DB_PORT", "5432")
 DB_URL = os.environ.get("DATABASE_URL")
 
 # Overpass API mirrors for OSM queries
+# Overpass API mirrors for OSM queries
 overpass_mirrors = [
-    "https://z.overpass-api.de/api/interpreter",
-    "https://overpass-api.de/api/interpreter",
+    "https://overpass.openstreetmap.fr/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
     "https://lz4.overpass-api.de/api/interpreter",
-    "https://overpass.nchc.org.tw/api/interpreter"
+    "https://z.overpass-api.de/api/interpreter",
+    "https://overpass-api.de/api/interpreter"
 ]
 
 osm_queries = {
@@ -39,7 +41,8 @@ osm_queries = {
 def query_overpass_with_fallback(name, q_body, timeout=60):
     query_str = f"[out:json][timeout:{timeout}];\n(\n{q_body}\n);\nout center;"
     headers = {
-        "User-Agent": "NigeriaCriticalInfrastructureBot/1.0 (https://github.com/spatial-infra; contact@example.com)",
+        "User-Agent": "NigeriaCriticalInfrastructureMapper/1.1 (admin@meridiannexus.com; contact@meridiannexus.com)",
+        "Referer": "https://meridiannexus.com/infrastructure",
         "Accept": "application/json"
     }
     for mirror in overpass_mirrors:
@@ -49,7 +52,7 @@ def query_overpass_with_fallback(name, q_body, timeout=60):
         
         for attempt in range(max_attempts):
             try:
-                response = requests.get(mirror, params={'data': query_str}, headers=headers, timeout=timeout + 15)
+                response = requests.post(mirror, data={'data': query_str}, headers=headers, timeout=timeout + 15)
                 if response.status_code == 200:
                     data = response.json()
                     return data.get('elements', [])

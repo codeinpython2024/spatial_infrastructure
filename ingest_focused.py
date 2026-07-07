@@ -17,10 +17,11 @@ DB_URL = os.environ.get("DATABASE_URL")
 
 # Overpass API mirrors for OSM queries
 overpass_mirrors = [
-    "https://z.overpass-api.de/api/interpreter",
-    "https://overpass-api.de/api/interpreter",
+    "https://overpass.openstreetmap.fr/api/interpreter",
+    "https://overpass.private.coffee/api/interpreter",
     "https://lz4.overpass-api.de/api/interpreter",
-    "https://overpass.nchc.org.tw/api/interpreter"
+    "https://z.overpass-api.de/api/interpreter",
+    "https://overpass-api.de/api/interpreter"
 ]
 
 osm_queries = {
@@ -36,7 +37,8 @@ osm_queries = {
 def query_overpass_with_fallback(name, q_body, timeout=60):
     query_str = f"[out:json][timeout:{timeout}];\n(\n{q_body}\n);\nout center;"
     headers = {
-        "User-Agent": "NigeriaCriticalInfrastructureBot/1.0 (https://github.com/spatial-infra; contact@example.com)",
+        "User-Agent": "NigeriaCriticalInfrastructureMapper/1.1 (admin@meridiannexus.com; contact@meridiannexus.com)",
+        "Referer": "https://meridiannexus.com/infrastructure",
         "Accept": "application/json"
     }
     for mirror in overpass_mirrors:
@@ -46,7 +48,7 @@ def query_overpass_with_fallback(name, q_body, timeout=60):
         
         for attempt in range(max_attempts):
             try:
-                response = requests.get(mirror, params={'data': query_str}, headers=headers, timeout=timeout + 15)
+                response = requests.post(mirror, data={'data': query_str}, headers=headers, timeout=timeout + 15)
                 if response.status_code == 200:
                     data = response.json()
                     return data.get('elements', [])
@@ -146,11 +148,6 @@ def main():
         print(f"Failed to connect to PostgreSQL: {e}")
         return
 
-    # First clean up the database of any non-healthcare and non-education assets to ensure no remnants
-    print("Cleaning database of existing non-healthcare/education records...")
-    cur.execute("DELETE FROM infrastructure_assets WHERE asset_type NOT IN ('healthcare', 'education');")
-    conn.commit()
-
     # Query templates for inserting
     # The WITH clause ensures we do not insert duplicate points spatially (within 50 meters)
     insert_query = """
@@ -247,6 +244,8 @@ def main():
     if records:
         print(f"  Inserting {len(records)} records into PostgreSQL...")
         try:
+            # Clean up existing GRID3 energy substations before inserting fresh ones
+            cur.execute("DELETE FROM infrastructure_assets WHERE source = 'GRID3 Nigeria - Energy Substations';")
             execute_batch(cur, insert_query, records, page_size=2000)
             conn.commit()
             print("  Successfully ingested GRID3 Energy Substations.")
@@ -313,6 +312,8 @@ def main():
         if records:
             print(f"  Inserting {len(records)} OSM records...")
             try:
+                # Clean up existing OSM records of this specific sub_type before inserting fresh ones
+                cur.execute("DELETE FROM infrastructure_assets WHERE source = 'OpenStreetMap (Overpass API)' AND sub_type = %s;", (sub_type,))
                 execute_batch(cur, insert_query, records, page_size=2000)
                 conn.commit()
                 print(f"  Successfully ingested OSM {sub_type}.")
