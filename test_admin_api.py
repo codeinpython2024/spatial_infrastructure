@@ -86,11 +86,9 @@ class AdminApiTestCase(unittest.TestCase):
         response = self.client.post('/api/v1/admin/add-asset', 
                                     data=json.dumps(payload_far),
                                     content_type='application/json')
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 400)
         data = json.loads(response.data)
-        self.assertTrue(data.get("lga_warning"))
-        self.assertIn("distance_km", data)
-        self.assertGreater(data["distance_km"], 25.0)
+        self.assertIn("away from other assets", data.get("error"))
         
         # 3. Add asset far from Alimosho assets WITH override_lga_check=True
         payload_far_override = payload_far.copy()
@@ -118,9 +116,9 @@ class AdminApiTestCase(unittest.TestCase):
         response = self.client.post(f'/api/v1/admin/edit-asset/{far_asset_id}', 
                                     data=json.dumps(payload_edit_far),
                                     content_type='application/json')
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 400)
         data = json.loads(response.data)
-        self.assertTrue(data.get("lga_warning"))
+        self.assertIn("away from other assets", data.get("error"))
         
         # 5. Edit the asset WITH override
         payload_edit_far_override = payload_edit_far.copy()
@@ -258,20 +256,20 @@ class AdminApiTestCase(unittest.TestCase):
         data = json.loads(response.data)
         self.assertTrue(data.get("success"))
         self.assertEqual(data["total_rows"], 5)
-        self.assertEqual(data["inserted_rows"], 2)
-        self.assertEqual(data["failed_rows"], 3)
+        self.assertEqual(data["inserted_rows"], 1)
+        self.assertEqual(data["failed_rows"], 4)
         
-        # 3 warnings (Row 1 was converted to health, Row 2 is > 25km away, Row 3 was converted to health)
-        self.assertEqual(len(data["warnings"]), 3)
+        # 2 warnings (Row 1 was converted to health, Row 3 was converted to health)
+        self.assertEqual(len(data["warnings"]), 2)
         self.assertIn("Converted asset type", data["warnings"][0])
-        self.assertIn("Row 2", data["warnings"][1])
-        self.assertIn("Converted asset type", data["warnings"][2])
+        self.assertIn("Converted asset type", data["warnings"][1])
         
-        # 3 errors (Row 3 is outside Nigeria, Row 4 misses state, Row 5 is invalid type)
-        self.assertEqual(len(data["errors"]), 3)
-        self.assertIn("outside of Nigeria", data["errors"][0])
-        self.assertIn("Missing required fields", data["errors"][1])
-        self.assertIn("Invalid asset type 'invalid_type'", data["errors"][2])
+        # 4 errors (Row 2 is > 25km away, Row 3 is outside Nigeria, Row 4 misses state, Row 5 is invalid type)
+        self.assertEqual(len(data["errors"]), 4)
+        self.assertIn("away from other assets", data["errors"][0])
+        self.assertIn("outside of Nigeria", data["errors"][1])
+        self.assertIn("Missing required fields", data["errors"][2])
+        self.assertIn("Invalid asset type 'invalid_type'", data["errors"][3])
 
         # Track the inserted CSV assets for tearDown cleanup
         conn = get_db_connection()

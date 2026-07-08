@@ -692,7 +692,9 @@ def upload_csv():
                 
                 if min_dist is not None and min_dist > 25000:
                     distance_km = round(min_dist / 1000, 1)
-                    warnings.append(f"Row {idx}: '{name}' is {distance_km} km away from other assets in {lga}.")
+                    failed_count += 1
+                    errors.append(f"Row {idx}: '{name}' is {distance_km} km away from other assets in {lga}.")
+                    continue
 
                 # 3. Perform insertion
                 cursor.execute("""
@@ -825,11 +827,7 @@ def add_asset():
                 
                 if min_dist is not None and min_dist > 25000:
                     distance_km = round(min_dist / 1000, 1)
-                    return jsonify({
-                        "lga_warning": True,
-                        "distance_km": distance_km,
-                        "message": f"Coordinates are {distance_km} km away from other assets in {lga}. It may fall outside the selected LGA's boundary. Do you want to save anyway?"
-                    }), 200
+                    return jsonify({"error": f"Coordinates are {distance_km} km away from other assets in {lga}. It may fall outside the selected LGA's boundary."}), 400
 
             # 4. Perform insertion
             cursor.execute("""
@@ -969,11 +967,7 @@ def edit_asset(asset_id):
                 
                 if min_dist is not None and min_dist > 25000:
                     distance_km = round(min_dist / 1000, 1)
-                    return jsonify({
-                        "lga_warning": True,
-                        "distance_km": distance_km,
-                        "message": f"Coordinates are {distance_km} km away from other assets in {lga}. It may fall outside the selected LGA's boundary. Do you want to update anyway?"
-                    }), 200
+                    return jsonify({"error": f"Coordinates are {distance_km} km away from other assets in {lga}. It may fall outside the selected LGA's boundary."}), 400
 
             # 4. Perform update
             cursor.execute("""
