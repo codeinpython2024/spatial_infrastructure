@@ -469,5 +469,26 @@ class AdminApiTestCase(unittest.TestCase):
         self.assertIn("Zamfara", states)
         self.assertIn("Lagos", states)
 
+    def test_lgas_retrieval(self):
+        # 1. Fetch LGAs for FCT (case-insensitive)
+        response = self.client.get('/api/v1/lgas?state=FCT')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        lgas = data.get("lgas", [])
+        self.assertTrue(len(lgas) > 0)
+        self.assertIn("Abuja Municipal Area Council", lgas)
+        
+        # Test lowercase fct
+        response_lower = self.client.get('/api/v1/lgas?state=fct')
+        self.assertEqual(response_lower.status_code, 200)
+        data_lower = json.loads(response_lower.data)
+        self.assertEqual(data_lower.get("lgas"), lgas)
+
+        # 2. Fetch LGAs for Lagos (case-insensitive)
+        response_lagos = self.client.get('/api/v1/lgas?state=lagos')
+        self.assertEqual(response_lagos.status_code, 200)
+        data_lagos = json.loads(response_lagos.data)
+        self.assertTrue(len(data_lagos.get("lgas", [])) > 0)
+
 if __name__ == '__main__':
     unittest.main()

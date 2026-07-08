@@ -380,7 +380,14 @@ def get_lgas():
     try:
         with conn.cursor() as cursor:
             if state:
-                cursor.execute("SELECT DISTINCT lga FROM infrastructure_assets WHERE state = %s AND lga IS NOT NULL ORDER BY lga;", (state,))
+                if state.upper() == 'FCT':
+                    cursor.execute("""
+                        SELECT DISTINCT lga FROM infrastructure_assets 
+                        WHERE (LOWER(state) = 'fct' OR LOWER(state) LIKE '%federal capital territory%') 
+                          AND lga IS NOT NULL ORDER BY lga;
+                    """)
+                else:
+                    cursor.execute("SELECT DISTINCT lga FROM infrastructure_assets WHERE LOWER(state) = LOWER(%s) AND lga IS NOT NULL ORDER BY lga;", (state,))
             else:
                 cursor.execute("SELECT DISTINCT lga FROM infrastructure_assets WHERE lga IS NOT NULL ORDER BY lga;")
             lgas = [row[0] for row in cursor.fetchall()]
