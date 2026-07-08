@@ -17,6 +17,36 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "b9165384bc133f81e812d4d98d41cf07bb0b81c2f9011be1b54b005166b26d37")
+
+def create_metadata_requests_table():
+    conn = get_db_connection()
+    if conn:
+        try:
+            with conn.cursor() as cursor:
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS metadata_requests (
+                        id SERIAL PRIMARY KEY,
+                        name VARCHAR(255) NOT NULL,
+                        organization VARCHAR(255) NOT NULL,
+                        email VARCHAR(255) NOT NULL,
+                        asset_name VARCHAR(255),
+                        latitude DOUBLE PRECISION,
+                        longitude DOUBLE PRECISION,
+                        purpose TEXT,
+                        status VARCHAR(50) DEFAULT 'Pending',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                conn.commit()
+                logger.info("metadata_requests table checked/created successfully.")
+        except Exception as e:
+            logger.error(f"Error creating metadata_requests table: {e}")
+            conn.rollback()
+        finally:
+            release_db_connection(conn)
+
+create_metadata_requests_table()
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -108,6 +138,71 @@ def index():
     current_year = date.today().year
     """Renders the main dashboard mapping interface."""
     return render_template('index.html', current_year=current_year)
+
+@app.route('/metadata/apply', methods=['GET'])
+def apply_metadata_page():
+    from datetime import date
+    current_year = date.today().year
+    return render_template('apply_metadata.html', current_year=current_year)
+
+@app.route('/api/v1/metadata/apply', methods=['POST'])
+def submit_metadata_request():
+    """Handles the public metadata request form submission."""
+    if request.is_json:
+        data = request.get_json() or {}
+    else:
+        data = request.form.to_dict() or {}
+
+    name = data.get('name', '').strip()
+    organization = data.get('organization', '').strip()
+    email = data.get('email', '').strip()
+    asset_name = data.get('asset_name', '').strip()
+    lat_str = data.get('latitude', '').strip()
+    lon_str = data.get('longitude', '').strip()
+    purpose = data.get('purpose', '').strip()
+
+    if not name or not organization or not email:
+        return jsonify({"error": "Full Name, Organization, and Email are required fields."}), 400
+
+    if '@' not in email or '.' not in email.split('@')[-1]:
+        return jsonify({"error": "Please enter a valid email address."}), 400
+
+    latitude = None
+    longitude = None
+    has_coords = False
+
+    if lat_str or lon_str:
+        try:
+            latitude = float(lat_str)
+            longitude = float(lon_str)
+            has_coords = True
+        except ValueError:
+            return jsonify({"error": "Latitude and longitude must be valid decimal numbers."}), 400
+
+    if not asset_name and not has_coords:
+        return jsonify({"error": "You must provide either the Infrastructure Name or its Coordinates (Latitude & Longitude)."}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection unavailable."}), 500
+
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                INSERT INTO metadata_requests (name, organization, email, asset_name, latitude, longitude, purpose)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id;
+            """, (name, organization, email, asset_name or None, latitude, longitude, purpose or None))
+            new_id = cursor.fetchone()[0]
+            conn.commit()
+            logger.info(f"New metadata request submitted by {name} (ID: {new_id})")
+            return jsonify({"success": True, "request_id": new_id, "message": "Metadata application submitted successfully."}), 201
+    except Exception as e:
+        logger.exception("Error saving metadata request:")
+        conn.rollback()
+        return jsonify({"error": f"Failed to submit metadata application: {e}"}), 500
+    finally:
+        release_db_connection(conn)
 
 @app.route('/api/v1/boundary', methods=['GET'])
 def get_boundary():
@@ -1071,6 +1166,136 @@ def delete_assets():
             return jsonify({"success": True, "deleted_count": deleted_count})
     except Exception as e:
         logger.exception("Error bulk deleting administrative assets:")
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+@app.route('/api/v1/admin/metadata-requests', methods=['GET'])
+def get_metadata_requests():
+    """Retrieves all metadata requests (ordered by newest first)."""
+    if not session.get('logged_in'):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection unavailable"}), 500
+
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, name, organization, email, asset_name, latitude, longitude, purpose, status, created_at
+                FROM metadata_requests
+                ORDER BY id DESC;
+            """)
+            requests_list = []
+            for row in cursor.fetchall():
+                requests_list.append({
+                    'id': row[0],
+                    'name': row[1],
+                    'organization': row[2],
+                    'email': row[3],
+                    'asset_name': row[4],
+                    'latitude': row[5],
+                    'longitude': row[6],
+                    'purpose': row[7],
+                    'status': row[8],
+                    'created_at': row[9].isoformat() if row[9] else None
+                })
+            return jsonify({"success": True, "requests": requests_list}), 200
+    except Exception as e:
+        logger.exception("Error fetching metadata requests:")
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+@app.route('/api/v1/admin/metadata-requests/<int:req_id>/status', methods=['POST'])
+def update_metadata_request_status(req_id):
+    """Updates the status of a metadata request (Approved or Rejected)."""
+    if not session.get('logged_in'):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.get_json() or {}
+    status = data.get('status', '').strip()
+    if status not in ['Approved', 'Rejected', 'Pending']:
+        return jsonify({"error": "Invalid status. Must be Approved, Rejected, or Pending"}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection unavailable"}), 500
+
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("UPDATE metadata_requests SET status = %s WHERE id = %s RETURNING id;", (status, req_id))
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({"error": "Request not found"}), 404
+            conn.commit()
+            logger.info(f"Admin updated status of metadata request {req_id} to {status}")
+            return jsonify({"success": True, "message": f"Request status updated to {status}."}), 200
+    except Exception as e:
+        logger.exception("Error updating metadata request status:")
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+@app.route('/api/v1/admin/metadata-requests/<int:req_id>', methods=['DELETE'])
+def delete_metadata_request(req_id):
+    """Deletes a metadata request."""
+    if not session.get('logged_in'):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection unavailable"}), 500
+
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("DELETE FROM metadata_requests WHERE id = %s RETURNING id;", (req_id,))
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({"error": "Request not found"}), 404
+            conn.commit()
+            logger.info(f"Admin deleted metadata request {req_id}")
+            return jsonify({"success": True, "message": "Request deleted successfully."}), 200
+    except Exception as e:
+        logger.exception("Error deleting metadata request:")
+        conn.rollback()
+        return jsonify({"error": str(e)}), 500
+    finally:
+        release_db_connection(conn)
+
+@app.route('/api/v1/admin/metadata-requests/bulk-delete', methods=['POST'])
+def bulk_delete_metadata_requests():
+    """Bulk deletes metadata requests."""
+    if not session.get('logged_in'):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.get_json() or {}
+    req_ids = data.get('request_ids', [])
+    if not req_ids or not isinstance(req_ids, list):
+        return jsonify({"error": "No request IDs provided"}), 400
+
+    try:
+        req_ids = [int(rid) for rid in req_ids]
+    except (ValueError, TypeError):
+        return jsonify({"error": "Invalid request ID format"}), 400
+
+    conn = get_db_connection()
+    if not conn:
+        return jsonify({"error": "Database connection unavailable"}), 500
+
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("DELETE FROM metadata_requests WHERE id = ANY(%s) RETURNING id;", (req_ids,))
+            deleted_rows = cursor.fetchall()
+            deleted_count = len(deleted_rows)
+            conn.commit()
+            logger.info(f"Admin bulk-deleted {deleted_count} metadata requests: {req_ids}")
+            return jsonify({"success": True, "deleted_count": deleted_count})
+    except Exception as e:
+        logger.exception("Error bulk deleting metadata requests:")
         conn.rollback()
         return jsonify({"error": str(e)}), 500
     finally:

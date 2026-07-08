@@ -14,6 +14,7 @@ class AdminApiTestCase(unittest.TestCase):
             sess['logged_in'] = True
             
         self.test_asset_ids = []
+        self.test_req_ids = []
 
         # Clean up database of test remnants to ensure clean test state
         conn = get_db_connection()
@@ -25,6 +26,10 @@ class AdminApiTestCase(unittest.TestCase):
                         WHERE source = 'Admin Portal' 
                           AND (asset_name LIKE 'Test %' OR asset_name LIKE 'CSV %' OR asset_name LIKE 'Pagination %' OR asset_name LIKE 'Bulk Delete %' OR asset_name LIKE 'Legacy %');
                     """)
+                    cursor.execute("""
+                        DELETE FROM metadata_requests 
+                        WHERE name LIKE 'Test %';
+                    """)
                     conn.commit()
             except Exception as e:
                 print(f"Error in setUp DB cleanup: {e}")
@@ -34,13 +39,15 @@ class AdminApiTestCase(unittest.TestCase):
 
     def tearDown(self):
         # Clean up any created assets
-        if self.test_asset_ids:
+        if self.test_asset_ids or self.test_req_ids:
             conn = get_db_connection()
             if conn:
                 try:
                     with conn.cursor() as cursor:
                         for asset_id in self.test_asset_ids:
                             cursor.execute("DELETE FROM infrastructure_assets WHERE id = %s AND source = 'Admin Portal';", (asset_id,))
+                        for req_id in self.test_req_ids:
+                            cursor.execute("DELETE FROM metadata_requests WHERE id = %s;", (req_id,))
                         conn.commit()
                 except Exception as e:
                     print(f"Error in tearDown cleanup: {e}")
@@ -489,6 +496,137 @@ class AdminApiTestCase(unittest.TestCase):
         self.assertEqual(response_lagos.status_code, 200)
         data_lagos = json.loads(response_lagos.data)
         self.assertTrue(len(data_lagos.get("lgas", [])) > 0)
+
+    def test_metadata_request_lifecycle(self):
+        # 1. Test public page renders
+        response = self.client.get('/metadata/apply')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Apply for Metadata", response.data)
+
+        # 2. Test metadata form submission validation rules
+        # Missing required fields
+        payload_invalid_fields = {
+            "name": "Test Applicant",
+            "organization": "",
+            "email": "test@example.com",
+            "asset_name": "Test Hospital"
+        }
+        response = self.client.post('/api/v1/metadata/apply',
+                                    data=json.dumps(payload_invalid_fields),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.data)
+        self.assertIn("required fields", data.get("error", ""))
+
+        # Missing both name and coordinates
+        payload_missing_asset = {
+            "name": "Test Applicant",
+            "organization": "Test Org",
+            "email": "test@example.com"
+        }
+        response = self.client.post('/api/v1/metadata/apply',
+                                    data=json.dumps(payload_missing_asset),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        data = json.loads(response.data)
+        self.assertIn("either the Infrastructure Name or its Coordinates", data.get("error", ""))
+
+        # 3. Successful submission with asset name
+        payload_valid_asset = {
+            "name": "Test Applicant",
+            "organization": "Test Org",
+            "email": "test@example.com",
+            "asset_name": "Test Hospital"
+        }
+        response = self.client.post('/api/v1/metadata/apply',
+                                    data=json.dumps(payload_valid_asset),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 201)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+        req_id1 = data.get("request_id")
+        self.test_req_ids.append(req_id1)
+
+        # 4. Successful submission with coordinates
+        payload_valid_coords = {
+            "name": "Test Applicant Coords",
+            "organization": "Test Org",
+            "email": "test@example.com",
+            "latitude": "9.0820",
+            "longitude": "7.5333"
+        }
+        response = self.client.post('/api/v1/metadata/apply',
+                                    data=json.dumps(payload_valid_coords),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 201)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+        req_id2 = data.get("request_id")
+        self.test_req_ids.append(req_id2)
+
+        # 5. Fetch all requests as Admin
+        response = self.client.get('/api/v1/admin/metadata-requests')
+        self.assertEqual(response.status_code, 200)
+        data = json.loads(response.data)
+        self.assertTrue(data.get("success"))
+        reqs = data.get("requests", [])
+        
+        # Verify both requests exist
+        found_ids = [r["id"] for r in reqs]
+        self.assertIn(req_id1, found_ids)
+        self.assertIn(req_id2, found_ids)
+
+        # 6. Update request status
+        response = self.client.post(f'/api/v1/admin/metadata-requests/{req_id1}/status',
+                                    data=json.dumps({"status": "Approved"}),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify status update in DB
+        response = self.client.get('/api/v1/admin/metadata-requests')
+        data = json.loads(response.data)
+        req1_data = next(r for r in data["requests"] if r["id"] == req_id1)
+        self.assertEqual(req1_data["status"], "Approved")
+
+        # 7. Delete request
+        response = self.client.delete(f'/api/v1/admin/metadata-requests/{req_id1}')
+        self.assertEqual(response.status_code, 200)
+        self.test_req_ids.remove(req_id1)
+
+        # 8. Bulk delete remaining request
+        response = self.client.post('/api/v1/admin/metadata-requests/bulk-delete',
+                                    data=json.dumps({"request_ids": [req_id2]}),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 200)
+        self.test_req_ids.remove(req_id2)
+
+        # Verify bulk deleted
+        response = self.client.get('/api/v1/admin/metadata-requests')
+        data = json.loads(response.data)
+        found_ids_after = [r["id"] for r in data["requests"]]
+        self.assertNotIn(req_id2, found_ids_after)
+
+    def test_metadata_admin_unauthorized(self):
+        # Log out admin
+        with self.client.session_transaction() as sess:
+            sess['logged_in'] = False
+
+        # Try admin endpoints and assert 401
+        response = self.client.get('/api/v1/admin/metadata-requests')
+        self.assertEqual(response.status_code, 401)
+
+        response = self.client.post('/api/v1/admin/metadata-requests/1/status',
+                                    data=json.dumps({"status": "Approved"}),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 401)
+
+        response = self.client.delete('/api/v1/admin/metadata-requests/1')
+        self.assertEqual(response.status_code, 401)
+
+        response = self.client.post('/api/v1/admin/metadata-requests/bulk-delete',
+                                    data=json.dumps({"request_ids": [1]}),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, 401)
 
 if __name__ == '__main__':
     unittest.main()

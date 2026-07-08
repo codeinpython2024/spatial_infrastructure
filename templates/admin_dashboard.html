@@ -523,7 +523,14 @@
 
         <!-- Right Side: Recent Insertions Feed -->
         <main class="admin-content">
-            <div class="feed-container">
+
+            <!-- Tab Navigation Switcher -->
+            <div class="admin-tabs">
+                <button id="tabAssetsBtn" class="admin-tab-btn active" onclick="switchDashboardTab('assets')">Administrative Assets</button>
+                <button id="tabMetadataBtn" class="admin-tab-btn" onclick="switchDashboardTab('metadata')">Metadata Requests</button>
+            </div>
+
+            <div class="feed-container" id="assetsFeedContainer">
                 <div class="feed-header" style="flex-wrap: wrap; gap: 12px;">
                     <span class="feed-title">Administrative Assets Feed</span>
 
@@ -598,6 +605,61 @@
                         <button type="button" class="btn-nav btn-view-map" id="btnNextPage" onclick="nextPage()"
                             style="padding: 6px 12px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 12px; height: 32px; display: flex; align-items: center; margin: 0;">Next</button>
                     </div>
+                </div>
+            </div>
+
+            <!-- Metadata Request Feed Container -->
+            <div class="feed-container" id="metadataFeedContainer" style="display: none;">
+                <div class="feed-header" style="flex-wrap: wrap; gap: 12px;">
+                    <span class="feed-title">Metadata Requests Feed</span>
+
+                    <button id="btnMetadataBulkDelete" class="btn-delete"
+                        style="display: none; padding: 6px 12px; font-size: 12px; border-radius: 6px; margin: 0; align-items: center; gap: 6px;"
+                        onclick="bulkDeleteMetadataRequests()">
+                        Delete Selected (<span id="metadataBulkDeleteCount">0</span>)
+                    </button>
+
+                    <span
+                        style="font-size:12px; color:var(--text-secondary); background:var(--bg-primary); padding:4px 10px; border-radius:12px; border:1px solid var(--border-color); flex-shrink: 0; margin-left: auto;">
+                        Source: Public Portal
+                    </span>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="assets-table" id="metadataRequestsTable">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px; text-align: center; vertical-align: middle;">
+                                    <input type="checkbox" id="selectAllMetadataCheckbox" onchange="toggleSelectAllMetadata(this)"
+                                        style="cursor: pointer; width: 15px; height: 15px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-primary);">
+                                </th>
+                                <th>Applicant</th>
+                                <th>Organization</th>
+                                <th>Email</th>
+                                <th>Target Asset</th>
+                                <th>Coordinates (Lat, Lon)</th>
+                                <th>Purpose</th>
+                                <th>Status</th>
+                                <th style="text-align: right; min-width: 160px;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="metadataTableBody">
+                            <tr id="empty-metadata-state-row">
+                                <td colspan="9">
+                                    <div class="empty-state">
+                                        <svg width="32" height="32" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                                            stroke-linejoin="round">
+                                            <circle cx="12" cy="12" r="10"></circle>
+                                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                        </svg>
+                                        <p>No metadata requests found.</p>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </main>
@@ -1414,6 +1476,296 @@
                 dropzone.style.opacity = '1';
                 dropzone.style.pointerEvents = 'auto';
                 document.getElementById('csvFileInput').value = ''; // clear input
+            }
+        }
+
+        }
+
+        // --- Metadata Requests Management Functions ---
+        let metadataRequests = [];
+        let selectedMetadataIds = [];
+
+        function switchDashboardTab(tab) {
+            const tabAssetsBtn = document.getElementById('tabAssetsBtn');
+            const tabMetadataBtn = document.getElementById('tabMetadataBtn');
+            const assetsFeed = document.getElementById('assetsFeedContainer');
+            const metadataFeed = document.getElementById('metadataFeedContainer');
+
+            if (tab === 'assets') {
+                tabAssetsBtn.classList.add('active');
+                tabMetadataBtn.classList.remove('active');
+                assetsFeed.style.display = 'block';
+                metadataFeed.style.display = 'none';
+            } else {
+                tabMetadataBtn.classList.add('active');
+                tabAssetsBtn.classList.remove('active');
+                assetsFeed.style.display = 'none';
+                metadataFeed.style.display = 'block';
+                loadMetadataRequests();
+            }
+        }
+
+        async function loadMetadataRequests() {
+            const tbody = document.getElementById('metadataTableBody');
+            if (!tbody) return;
+
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9">
+                        <div class="empty-state">
+                            <svg class="spinner" width="24" height="24" viewBox="0 0 50 50" style="animation: rotate 2s linear infinite; display: inline-block;">
+                                <circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5" stroke="var(--accent-color)" stroke-linecap="round" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; animation: dash 1.5s ease-in-out infinite;"></circle>
+                            </svg>
+                            <p style="margin-top: 8px;">Loading metadata requests...</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+
+            try {
+                const response = await fetch('/api/v1/admin/metadata-requests');
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="9">
+                                <div class="empty-state" style="color: #ef4444;">
+                                    <p>Failed to load requests: ${data.error || 'Server error'}</p>
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                metadataRequests = data.requests || [];
+                renderMetadataRequestsTable();
+            } catch (error) {
+                console.error("Error loading metadata requests:", error);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9">
+                            <div class="empty-state" style="color: #ef4444;">
+                                <p>Error connecting to API.</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        function renderMetadataRequestsTable() {
+            const tbody = document.getElementById('metadataTableBody');
+            const selectAllCheckbox = document.getElementById('selectAllMetadataCheckbox');
+            if (selectAllCheckbox) selectAllCheckbox.checked = false;
+            selectedMetadataIds = [];
+            updateMetadataBulkDeleteUI();
+
+            if (metadataRequests.length === 0) {
+                tbody.innerHTML = `
+                    <tr id="empty-metadata-state-row">
+                        <td colspan="9">
+                            <div class="empty-state">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                </svg>
+                                <p>No metadata requests found.</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = '';
+            metadataRequests.forEach(req => {
+                const tr = document.createElement('tr');
+                tr.id = `metadata-row-${req.id}`;
+                
+                const coordsStr = (req.latitude !== null && req.longitude !== null) 
+                    ? `${req.latitude.toFixed(4)}, ${req.longitude.toFixed(4)}`
+                    : '<span style="color: var(--text-secondary); font-style: italic;">N/A</span>';
+
+                const nameStr = req.asset_name ? escapeHtml(req.asset_name) : '<span style="color: var(--text-secondary); font-style: italic;">N/A</span>';
+                const purposeStr = req.purpose ? escapeHtml(req.purpose) : '<span style="color: var(--text-secondary); font-style: italic;">N/A</span>';
+                
+                let statusBadgeClass = 'pending';
+                if (req.status === 'Approved') statusBadgeClass = 'approved';
+                if (req.status === 'Rejected') statusBadgeClass = 'rejected';
+
+                let actionsHtml = '';
+                if (req.status === 'Pending') {
+                    actionsHtml = `
+                        <button class="btn-status-action btn-status-approve" onclick="updateRequestStatus(${req.id}, 'Approved')" style="margin-right: 6px;">Approve</button>
+                        <button class="btn-status-action btn-status-reject" onclick="updateRequestStatus(${req.id}, 'Rejected')" style="margin-right: 6px;">Reject</button>
+                    `;
+                } else if (req.status === 'Approved') {
+                    actionsHtml = `
+                        <button class="btn-status-action btn-status-reject" onclick="updateRequestStatus(${req.id}, 'Rejected')" style="margin-right: 6px;">Reject</button>
+                    `;
+                } else {
+                    actionsHtml = `
+                        <button class="btn-status-action btn-status-approve" onclick="updateRequestStatus(${req.id}, 'Approved')" style="margin-right: 6px;">Approve</button>
+                    `;
+                }
+
+                tr.innerHTML = `
+                    <td style="text-align: center; vertical-align: middle;">
+                        <input type="checkbox" class="metadata-checkbox" data-id="${req.id}" onchange="handleMetadataSelect(this)" style="cursor: pointer; width: 15px; height: 15px;">
+                    </td>
+                    <td style="font-weight: 500;">${escapeHtml(req.name)}</td>
+                    <td>${escapeHtml(req.organization)}</td>
+                    <td><a href="mailto:${escapeHtml(req.email)}" style="color: var(--accent-color); text-decoration: none;">${escapeHtml(req.email)}</a></td>
+                    <td>${nameStr}</td>
+                    <td style="font-family: monospace;">${coordsStr}</td>
+                    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(req.purpose || '')}">${purposeStr}</td>
+                    <td><span class="status-badge ${statusBadgeClass}">${req.status}</span></td>
+                    <td style="text-align: right; white-space: nowrap;">
+                        ${actionsHtml}
+                        <button class="btn-delete" onclick="deleteMetadataRequest(${req.id})">Delete</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.toString()
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function handleMetadataSelect(checkbox) {
+            const id = parseInt(checkbox.getAttribute('data-id'));
+            if (checkbox.checked) {
+                if (!selectedMetadataIds.includes(id)) selectedMetadataIds.push(id);
+            } else {
+                selectedMetadataIds = selectedMetadataIds.filter(x => x !== id);
+            }
+            updateMetadataSelectAllCheckboxState();
+            updateMetadataBulkDeleteUI();
+        }
+
+        function toggleSelectAllMetadata(checkbox) {
+            const checkboxes = document.querySelectorAll('.metadata-checkbox');
+            selectedMetadataIds = [];
+            checkboxes.forEach(cb => {
+                cb.checked = checkbox.checked;
+                if (checkbox.checked) {
+                    selectedMetadataIds.push(parseInt(cb.getAttribute('data-id')));
+                }
+            });
+            updateMetadataBulkDeleteUI();
+        }
+
+        function updateMetadataSelectAllCheckboxState() {
+            const selectAllCheckbox = document.getElementById('selectAllMetadataCheckbox');
+            const checkboxes = document.querySelectorAll('.metadata-checkbox');
+            if (!selectAllCheckbox) return;
+
+            if (checkboxes.length === 0) {
+                selectAllCheckbox.checked = false;
+                return;
+            }
+
+            selectAllCheckbox.checked = Array.from(checkboxes).every(cb => cb.checked);
+        }
+
+        function updateMetadataBulkDeleteUI() {
+            const btn = document.getElementById('btnMetadataBulkDelete');
+            const countSpan = document.getElementById('metadataBulkDeleteCount');
+            if (!btn || !countSpan) return;
+
+            if (selectedMetadataIds.length > 0) {
+                countSpan.textContent = selectedMetadataIds.length;
+                btn.style.display = 'inline-flex';
+            } else {
+                btn.style.display = 'none';
+            }
+        }
+
+        async function updateRequestStatus(id, newStatus) {
+            try {
+                const response = await fetch(`/api/v1/admin/metadata-requests/${id}/status`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    showToast(`Request status updated to ${newStatus}.`, "success");
+                    const req = metadataRequests.find(x => x.id === id);
+                    if (req) req.status = newStatus;
+                    renderMetadataRequestsTable();
+                } else {
+                    showToast(data.error || "Failed to update request status.", "error");
+                }
+            } catch (e) {
+                console.error(e);
+                showToast("Error updating request status.", "error");
+            }
+        }
+
+        async function deleteMetadataRequest(id) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const bypassConfirm = urlParams.get('bypass_confirm') === 'true';
+
+            if (!bypassConfirm && !confirm("Are you sure you want to delete this metadata request?")) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/v1/admin/metadata-requests/${id}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    showToast("Request deleted successfully.", "success");
+                    metadataRequests = metadataRequests.filter(x => x.id !== id);
+                    renderMetadataRequestsTable();
+                } else {
+                    showToast(data.error || "Failed to delete request.", "error");
+                }
+            } catch (e) {
+                console.error(e);
+                showToast("Error deleting request.", "error");
+            }
+        }
+
+        async function bulkDeleteMetadataRequests() {
+            if (selectedMetadataIds.length === 0) return;
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const bypassConfirm = urlParams.get('bypass_confirm') === 'true';
+
+            if (!bypassConfirm && !confirm(`Are you sure you want to delete the ${selectedMetadataIds.length} selected metadata request(s)?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/v1/admin/metadata-requests/bulk-delete', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ request_ids: selectedMetadataIds })
+                });
+                const data = await response.json();
+                if (response.ok && data.success) {
+                    showToast(`Successfully deleted ${data.deleted_count} request(s).`, "success");
+                    metadataRequests = metadataRequests.filter(x => !selectedMetadataIds.includes(x.id));
+                    renderMetadataRequestsTable();
+                } else {
+                    showToast(data.error || "Failed to delete requests.", "error");
+                }
+            } catch (e) {
+                console.error(e);
+                showToast("Error performing bulk deletion.", "error");
             }
         }
 

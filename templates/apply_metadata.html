@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apply for Metadata - Nigeria Critical Infrastructure Portal</title>
+    
+    <!-- Google Fonts: Inter and Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+    <style>
+        body.apply-page {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: radial-gradient(circle at 10% 20%, rgba(16, 185, 129, 0.08) 0%, rgba(15, 23, 42, 0.98) 90%);
+            color: var(--text-primary);
+            font-family: var(--font-body);
+            margin: 0;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        body.apply-page.light-theme {
+            background: radial-gradient(circle at 10% 20%, rgba(16, 185, 129, 0.05) 0%, rgba(248, 250, 252, 1) 90%);
+        }
+        
+        .apply-container {
+            width: 100%;
+            max-width: 580px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            padding: 32px 40px;
+            box-shadow: var(--card-shadow);
+            position: relative;
+            transition: all 0.3s ease;
+        }
+
+        /* Glassmorphism details when in dark theme */
+        body:not(.light-theme) .apply-container {
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        
+        .apply-header {
+            text-align: center;
+            margin-bottom: 28px;
+        }
+
+        .apply-header h2 {
+            font-family: var(--font-display);
+            font-size: 26px;
+            font-weight: 700;
+            margin: 0 0 8px 0;
+            background: linear-gradient(135deg, var(--text-primary) 30%, var(--accent-color) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }
+        
+        .apply-header p {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin: 0;
+            line-height: 1.5;
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        @media (max-width: 480px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            .apply-container {
+                padding: 24px;
+            }
+        }
+        
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .form-group label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+        }
+        
+        .form-input {
+            width: 100%;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            outline: none;
+            transition: all 0.2s ease;
+            font-family: var(--font-body);
+        }
+        
+        .form-input:focus {
+            border-color: var(--accent-color);
+            box-shadow: 0 0 0 3px var(--accent-glow);
+        }
+
+        .form-textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+        
+        .btn-submit {
+            background: var(--accent-color);
+            color: #ffffff;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: var(--font-display);
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px var(--accent-glow);
+            margin-top: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .btn-submit:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px var(--accent-glow);
+        }
+        
+        .btn-submit:active {
+            transform: translateY(1px);
+        }
+
+        .btn-submit:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .form-footer {
+            margin-top: 24px;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-top: 1px solid var(--border-color);
+            padding-top: 16px;
+        }
+
+        .back-link {
+            font-size: 13px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            transition: color 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-weight: 500;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-color);
+        }
+
+        .theme-btn-container {
+            display: flex;
+            align-items: center;
+        }
+
+        /* Success Card Styling */
+        .success-card {
+            display: none;
+            text-align: center;
+            padding: 10px 0;
+            animation: fadeIn 0.4s ease forwards;
+        }
+
+        .success-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--accent-color);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .success-card h3 {
+            font-family: var(--font-display);
+            font-size: 22px;
+            margin: 0 0 10px 0;
+        }
+
+        .success-card p {
+            color: var(--text-secondary);
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 24px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="apply-page">
+
+    <div class="apply-container" id="formContainer">
+        
+        <!-- Application Form Content -->
+        <div id="formView">
+            <div class="apply-header">
+                <img src="{{ url_for('static', filename='image/logo.png') }}" alt="Logo" style="height: 48px; width: auto; margin-bottom: 12px; filter: drop-shadow(0 4px 8px var(--accent-glow));">
+                <h2>Apply for Metadata</h2>
+                <p>Request specific dataset parameters and metadata files for critical infrastructure assets in our database.</p>
+            </div>
+            
+            <form id="metadataForm" onsubmit="submitForm(event)">
+                <div class="form-grid">
+                    
+                    <div class="form-group">
+                        <label for="name">Full Name *</label>
+                        <input type="text" id="name" name="name" class="form-input" placeholder="e.g. Dr. Amina Bello" required>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="organization">Organization / Agency *</label>
+                            <input type="text" id="organization" name="organization" class="form-input" placeholder="e.g. Ministry of Health" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="email">Contact Email *</label>
+                            <input type="email" id="email" name="email" class="form-input" placeholder="amina@agency.gov.ng" required>
+                        </div>
+                    </div>
+
+                    <div style="border-top: 1px dashed var(--border-color); margin: 8px 0;"></div>
+
+                    <div class="form-group">
+                        <label for="asset_name">Target Infrastructure Name</label>
+                        <input type="text" id="asset_name" name="asset_name" class="form-input" placeholder="e.g. Lagos University Teaching Hospital">
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="latitude">Latitude</label>
+                            <input type="number" step="any" id="latitude" name="latitude" class="form-input" placeholder="e.g. 6.5244">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="longitude">Longitude</label>
+                            <input type="number" step="any" id="longitude" name="longitude" class="form-input" placeholder="e.g. 3.3792">
+                        </div>
+                    </div>
+                    
+                    <div style="font-size: 11px; color: var(--text-secondary); margin-top: -6px; display: flex; align-items: center; gap: 4px;">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: var(--accent-color);">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="16" x2="12" y2="12"></line>
+                            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+                        </svg>
+                        <span>Please provide either the infrastructure name OR its coordinates (latitude/longitude) in the database.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="purpose">Purpose / Intended Use</label>
+                        <textarea id="purpose" name="purpose" class="form-input form-textarea" placeholder="Describe why you need this metadata..."></textarea>
+                    </div>
+                    
+                    <button type="submit" class="btn-submit" id="btnSubmit">
+                        <span id="btnText">Submit Application</span>
+                        <svg id="loadingSpinner" class="spinner" width="16" height="16" viewBox="0 0 50 50" style="display: none; animation: rotate 2s linear infinite;">
+                            <circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5" stroke="#ffffff" stroke-linecap="round" style="stroke-dasharray: 1, 150; stroke-dashoffset: 0; animation: dash 1.5s ease-in-out infinite;"></circle>
+                        </svg>
+                    </button>
+                </div>
+            </form>
+            
+            <div class="form-footer">
+                <a href="{{ url_for('index') }}" class="back-link">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                    Back to Public Map
+                </a>
+
+                <div class="theme-btn-container">
+                    <button id="themeToggle" class="theme-toggle-btn" onclick="toggleTheme()" aria-label="Toggle Theme" style="padding: 6px;">
+                        <svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="5"></circle>
+                            <line x1="12" y1="1" x2="12" y2="3"></line>
+                            <line x1="12" y1="21" x2="12" y2="23"></line>
+                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                            <line x1="1" y1="12" x2="3" y2="12"></line>
+                            <line x1="21" y1="12" x2="23" y2="12"></line>
+                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Success Feedback Card -->
+        <div id="successView" class="success-card">
+            <div class="success-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+            </div>
+            <h3>Application Submitted!</h3>
+            <p>Thank you for your interest. Your request for infrastructure metadata has been logged and is awaiting administrator review. We will contact you at your provided email address shortly.</p>
+            <a href="{{ url_for('index') }}" class="btn-submit" style="text-decoration: none; width: auto; display: inline-flex;">
+                Back to Public Map
+            </a>
+        </div>
+
+    </div>
+
+    <!-- Dynamic Toast Notification Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <script>
+        // Simple light/dark theme switcher sync with local storage
+        let currentTheme = localStorage.getItem('theme') || 'light';
+
+        function applyTheme(theme) {
+            const body = document.body;
+            const themeIcon = document.getElementById('themeIcon');
+            
+            if (theme === 'light') {
+                body.classList.add('light-theme');
+                if (themeIcon) {
+                    themeIcon.innerHTML = `
+                        <circle cx="12" cy="12" r="5"></circle>
+                        <line x1="12" y1="1" x2="12" y2="3"></line>
+                        <line x1="12" y1="21" x2="12" y2="23"></line>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                        <line x1="1" y1="12" x2="3" y2="12"></line>
+                        <line x1="21" y1="12" x2="23" y2="12"></line>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                    `;
+                }
+            } else {
+                body.classList.remove('light-theme');
+                if (themeIcon) {
+                    themeIcon.innerHTML = `
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                    `;
+                }
+            }
+            localStorage.setItem('theme', theme);
+            currentTheme = theme;
+        }
+
+        function toggleTheme() {
+            applyTheme(currentTheme === 'light' ? 'dark' : 'light');
+        }
+
+        // Initialize theme on window load
+        window.addEventListener('DOMContentLoaded', () => {
+            applyTheme(currentTheme);
+
+            // Populate fields from URL parameters if present
+            const params = new URLSearchParams(window.location.search);
+            const assetName = params.get('name');
+            const latitude = params.get('lat');
+            const longitude = params.get('lon');
+
+            if (assetName) {
+                document.getElementById('asset_name').value = decodeURIComponent(assetName);
+            }
+            if (latitude) {
+                document.getElementById('latitude').value = parseFloat(latitude);
+            }
+            if (longitude) {
+                document.getElementById('longitude').value = parseFloat(longitude);
+            }
+        });
+
+        // Toast Alert System
+        function showToast(message, type = "success") {
+            const container = document.getElementById('toastContainer');
+            if (!container) return;
+
+            const icons = {
+                success: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`,
+                error:   `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>`
+            };
+
+            const titles = { success: 'Success', error: 'Validation Error' };
+
+            const toast = document.createElement('div');
+            toast.className = `toast-notification toast-${type}`;
+            toast.innerHTML = `
+                <div class="toast-icon">${icons[type]}</div>
+                <div class="toast-body">
+                    <div class="toast-title">${titles[type]}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <button class="toast-close" onclick="this.parentElement.remove()" aria-label="Dismiss">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            `;
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.add('active'), 10);
+            setTimeout(() => {
+                toast.classList.remove('active');
+                setTimeout(() => toast.remove(), 400);
+            }, 4000);
+        }
+
+        // Handle AJAX form submission
+        async function submitForm(event) {
+            event.preventDefault();
+            
+            const btnSubmit = document.getElementById('btnSubmit');
+            const btnText = document.getElementById('btnText');
+            const loadingSpinner = document.getElementById('loadingSpinner');
+
+            // Retrieve fields
+            const name = document.getElementById('name').value.trim();
+            const organization = document.getElementById('organization').value.trim();
+            const email = document.getElementById('email').value.trim();
+            const assetName = document.getElementById('asset_name').value.trim();
+            const latVal = document.getElementById('latitude').value.trim();
+            const lonVal = document.getElementById('longitude').value.trim();
+            const purpose = document.getElementById('purpose').value.trim();
+
+            // Client side validation: Either asset name or coordinates must be provided
+            const hasCoords = (latVal !== "" && lonVal !== "");
+            if (!assetName && !hasCoords) {
+                showToast("You must provide either the Infrastructure Name or its Coordinates (Latitude & Longitude).", "error");
+                return;
+            }
+
+            if ((latVal !== "" && lonVal === "") || (latVal === "" && lonVal !== "")) {
+                showToast("Please provide both Latitude and Longitude if entering coordinates.", "error");
+                return;
+            }
+
+            // Set loading state
+            btnSubmit.disabled = true;
+            btnText.textContent = "Submitting...";
+            loadingSpinner.style.display = "inline-block";
+
+            try {
+                const response = await fetch('/api/v1/metadata/apply', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: name,
+                        organization: organization,
+                        email: email,
+                        asset_name: assetName,
+                        latitude: latVal,
+                        longitude: lonVal,
+                        purpose: purpose
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.success) {
+                    // Transition to success state
+                    document.getElementById('formView').style.display = "none";
+                    document.getElementById('successView').style.display = "block";
+                } else {
+                    showToast(result.error || "Failed to submit request.", "error");
+                }
+            } catch (err) {
+                console.error("Submission error:", err);
+                showToast("An unexpected error occurred. Please check your network connection.", "error");
+            } finally {
+                btnSubmit.disabled = false;
+                btnText.textContent = "Submit Application";
+                loadingSpinner.style.display = "none";
+            }
+        }
+    </script>
+</body>
+</html>

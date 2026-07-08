@@ -446,7 +446,7 @@ async function loadInfrastructureData() {
                 const containerId = `pop-wp-${props.id || Math.random().toString(36).substr(2, 9)}`;
                 const coords = layer.getLatLng();
 
-                // Construct popups with dynamic WorldPop trigger container
+                // Construct popups with dynamic WorldPop trigger container & Metadata Request link
                 layer.bindPopup(`
                             <div class="popup-header">${props.name || 'Unnamed Asset'}</div>
                             <div class="popup-detail">
@@ -464,10 +464,13 @@ async function loadInfrastructureData() {
                             <div class="badge" style="background-color: ${badgeColor}15; color: ${badgeColor}; border: 1px solid ${badgeColor}40;">
                                 ${(props.type || 'other').toUpperCase()} (${props.sub_type || 'General'})
                             </div>
-                            <div id="${containerId}" class="popup-detail" style="margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 8px;">
-                                <button class="btn-pop-query" data-lat="${coords.lat}" data-lon="${coords.lng}" data-container="${containerId}">
+                            <div id="${containerId}" class="popup-detail" style="margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+                                <button class="btn-pop-query" data-lat="${coords.lat}" data-lon="${coords.lng}" data-container="${containerId}" style="width: 100%;">
                                     Estimate Pop. (1km radius)
                                 </button>
+                                <a href="/metadata/apply?name=${encodeURIComponent(props.name || '')}&lat=${coords.lat}&lon=${coords.lng}" class="btn-pop-metadata" style="display: block; text-align: center; text-decoration: none; padding: 6px 12px; font-size: 11px; font-weight: 500; color: white; background-color: var(--accent-color); border-radius: 6px; transition: background-color 0.2s;" onmouseover="this.style.backgroundColor='var(--accent-hover)'" onmouseout="this.style.backgroundColor='var(--accent-color)'" target="_blank">
+                                    Request Metadata
+                                </a>
                             </div>
                         `);
             }
