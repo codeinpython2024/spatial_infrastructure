@@ -1,10 +1,33 @@
-import time
 import os
 from playwright.sync_api import sync_playwright
 from database import get_db_connection, release_db_connection
 
 def test_ui():
-    artifact_dir = r"C:\Users\ahb4r\.gemini\antigravity-ide\brain\d2e8276f-f164-4448-95a5-24e613ea9136"
+    # Try to get conversationId dynamically from the Antigravity environment
+    metadata_env = os.environ.get("ANTIGRAVITY_SOURCE_METADATA")
+    conversation_id = None
+    if metadata_env:
+        try:
+            import json
+            metadata = json.loads(metadata_env)
+            conversation_id = metadata.get("tool", {}).get("conversationId")
+        except Exception:
+            pass
+
+    if conversation_id:
+        artifact_dir = os.path.join(r"C:\Users\ahb4r\.gemini\antigravity-ide\brain", conversation_id)
+    else:
+        # Fall back to finding the newest directory under brain/ if it exists, or local screenshots/ directory
+        brain_base = r"C:\Users\ahb4r\.gemini\antigravity-ide\brain"
+        if os.path.exists(brain_base):
+            subdirs = [os.path.join(brain_base, d) for d in os.listdir(brain_base) if os.path.isdir(os.path.join(brain_base, d))]
+            if subdirs:
+                artifact_dir = max(subdirs, key=os.path.getmtime)
+            else:
+                artifact_dir = os.path.join(os.getcwd(), "screenshots")
+        else:
+            artifact_dir = os.path.join(os.getcwd(), "screenshots")
+
     os.makedirs(artifact_dir, exist_ok=True)
     
     # 1. Prepare bulk CSV file with 12 assets to trigger pagination
