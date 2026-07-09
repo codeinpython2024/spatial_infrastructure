@@ -526,8 +526,10 @@
 
             <!-- Tab Navigation Switcher -->
             <div class="admin-tabs">
-                <button id="tabAssetsBtn" class="admin-tab-btn active" onclick="switchDashboardTab('assets')">Administrative Assets</button>
-                <button id="tabMetadataBtn" class="admin-tab-btn" onclick="switchDashboardTab('metadata')">Metadata Requests</button>
+                <button id="tabAssetsBtn" class="admin-tab-btn active"
+                    onclick="switchDashboardTab('assets')">Administrative Assets</button>
+                <button id="tabMetadataBtn" class="admin-tab-btn" onclick="switchDashboardTab('metadata')">Metadata
+                    Requests</button>
             </div>
 
             <div class="feed-container" id="assetsFeedContainer">
@@ -630,7 +632,8 @@
                         <thead>
                             <tr>
                                 <th style="width: 40px; text-align: center; vertical-align: middle;">
-                                    <input type="checkbox" id="selectAllMetadataCheckbox" onchange="toggleSelectAllMetadata(this)"
+                                    <input type="checkbox" id="selectAllMetadataCheckbox"
+                                        onchange="toggleSelectAllMetadata(this)"
                                         style="cursor: pointer; width: 15px; height: 15px; border-radius: 4px; border: 1px solid var(--border-color); background: var(--bg-primary);">
                                 </th>
                                 <th>Applicant</th>
@@ -1479,7 +1482,6 @@
             }
         }
 
-        }
 
         // --- Metadata Requests Management Functions ---
         let metadataRequests = [];
@@ -1584,14 +1586,14 @@
             metadataRequests.forEach(req => {
                 const tr = document.createElement('tr');
                 tr.id = `metadata-row-${req.id}`;
-                
-                const coordsStr = (req.latitude !== null && req.longitude !== null) 
+
+                const coordsStr = (req.latitude !== null && req.longitude !== null)
                     ? `${req.latitude.toFixed(4)}, ${req.longitude.toFixed(4)}`
                     : '<span style="color: var(--text-secondary); font-style: italic;">N/A</span>';
 
                 const nameStr = req.asset_name ? escapeHtml(req.asset_name) : '<span style="color: var(--text-secondary); font-style: italic;">N/A</span>';
                 const purposeStr = req.purpose ? escapeHtml(req.purpose) : '<span style="color: var(--text-secondary); font-style: italic;">N/A</span>';
-                
+
                 let statusBadgeClass = 'pending';
                 if (req.status === 'Approved') statusBadgeClass = 'approved';
                 if (req.status === 'Rejected') statusBadgeClass = 'rejected';
